@@ -1,60 +1,51 @@
 buildscript {
 	repositories {
+		maven { url = 'https://files.minecraftforge.net/maven' }
 		jcenter()
-		maven { url = "http://files.minecraftforge.net/maven" }
+		mavenCentral()
 	}
 	dependencies {
-		classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
+		classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '3.+', changing: true
 	}
 }
-apply plugin: 'net.minecraftforge.gradle.forge'
-//Only edit below this line, the above code adds and enables the necessary things for Forge to be setup.
+apply plugin: 'net.minecraftforge.gradle'
+// Only edit below this line, the above code adds and enables the necessary things for Forge to be setup.
 
 version = "${mc_version}-${mod_version}"
 group = "com.sonicether.soundphysics"
 archivesBaseName = "Sound-Physics"
 
-jar {
-	manifest {
-		attributes 'FMLCorePlugin': 'com.sonicether.soundphysics.CoreModLoader'
-		attributes 'FMLCorePluginContainsFMLMod': 'true'
-		attributes 'FMLAT': 'soundphysics_at.cfg'
-	}
-}
-
-sourceCompatibility = targetCompatibility = '1.8' // Need this here so eclipse task generates correctly.
-compileJava {
-	sourceCompatibility = targetCompatibility = '1.8'
-}
-
 minecraft {
-	version = "${mc_version}-${forge_version}"
-	runDir = "run"
-	mappings = mcp_mappings
-
-	replace '${version}', mod_version
-	replace '${mc_version}', mc_version
-	replaceIn "SoundPhysics.java"
+	// The mappings can be changed at any time, and must be in the following format.
+	// snapshot_YYYYMMDD   Snapshot are built nightly.
+	// stable_#            Stables are built at the discretion of the MCP team.
+	// Use non-default mappings at your own risk. they may not always work.
+	// Simply re-run your setup task after changing the mappings to update your workspace.
+	mappings channel: 'snapshot', version: mcp_mappings
+	
+	// The AT needs to be called accesstransformer.cfg and needs to be in META-INF fucking kek
+	accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 }
 
 dependencies {
+	// Specify the version of Minecraft to use, If this is any group other then 'net.minecraft' it is assumed
+	// that the dep is a ForgeGradle 'patcher' dependency. And it's patches will be applied.
+	// The userdev artifact is a special name and will get all sorts of transformations applied to it.
+	minecraft "net.minecraftforge:forge:${mc_version}-${forge_version}"
 }
 
-processResources {
-	// this will ensure that this task is redone when the versions change.
-	inputs.property "version", mod_version
-	inputs.property "mc_version", mc_version
-
-	// replace stuff in mcmod.info, nothing else
-	from(sourceSets.main.resources.srcDirs) {
-		include 'mcmod.info'
-
-		// replace version and mcversion
-		expand 'version':mod_version, 'mc_version':mc_version
-	}
-
-	// copy everything else except the mcmod.info
-	from(sourceSets.main.resources.srcDirs) {
-		exclude 'mcmod.info'
+// Example for how to get properties into the manifest for reading by the runtime..
+jar {
+	manifest {
+		attributes([
+			"Specification-Title": "soundphysics",
+			"Specification-Vendor": "sonicether",
+			"Specification-Version": "1", // We are version 1 of ourselves
+			"Implementation-Title": project.name,
+			"Implementation-Version": "${version}",
+			"Implementation-Vendor" :"djpadbit",
+			"Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+		])
 	}
 }
+jar.finalizedBy('reobfJar') 

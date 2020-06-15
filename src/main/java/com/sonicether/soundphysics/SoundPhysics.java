@@ -1,38 +1,56 @@
 package com.sonicether.soundphysics;
 
+import java.nio.file.Path;
+import java.nio.IntBuffer;
+
+import java.lang.reflect.Method;  
+
 import java.util.regex.Pattern;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.lwjgl.openal.AL10;
 import org.lwjgl.openal.AL11;
 import org.lwjgl.openal.ALC10;
-import org.lwjgl.openal.ALCcontext;
-import org.lwjgl.openal.ALCdevice;
-import org.lwjgl.openal.EFX10;
+import org.lwjgl.openal.EXTEfx;
+import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.openal.ALCCapabilities;
 
+import net.minecraft.world.biome.Biome;
+import net.minecraft.world.gen.Heightmap;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
-import net.minecraft.block.properties.PropertyDirection;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
-import net.minecraft.client.audio.MovingSound;
 import net.minecraft.entity.Entity;
-import net.minecraft.util.EnumFacing;
+import net.minecraft.util.Direction;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
+import net.minecraft.util.math.BlockRayTraceResult;
+import net.minecraft.util.math.RayTraceContext;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import paulscode.sound.SoundSystemConfig;
-import paulscode.sound.SoundSystem;
-import paulscode.sound.SoundBuffer;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.fml.config.ConfigTracker;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraft.client.audio.AudioStreamBuffer;
+import net.minecraft.client.audio.SoundEngine;
+import net.minecraft.client.audio.ISound;
+import net.minecraft.client.audio.Sound;
+import net.minecraft.client.audio.SoundSource;
+import net.minecraft.client.audio.SoundHandler;
 import javax.sound.sampled.AudioFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -40,17 +58,12 @@ import java.nio.ByteOrder;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 
-@Mod(modid = SoundPhysics.modid, clientSideOnly = true, acceptedMinecraftVersions = SoundPhysics.mcVersion,
-	 version = SoundPhysics.version, guiFactory = "com.sonicether.soundphysics.SPGuiFactory")
+@Mod(SoundPhysics.modid)
 public class SoundPhysics {
 
 	public static final String modid = "soundphysics";
-	public static final String version = "${version}";
-	public static final String mcVersion = "${mc_version}";
 
 	public static final Logger logger = LogManager.getLogger(modid);
-
-	public static boolean onServer = false;
 
 	private static final Pattern rainPattern = Pattern.compile(".*rain.*");
 	private static final Pattern stepPattern = Pattern.compile(".*step.*");
@@ -61,14 +74,11 @@ public class SoundPhysics {
 	private static final Pattern betweenlandsPattern = Pattern.compile("thebetweenlands:sounds\\/rift_.*\\.ogg");
 	private static final Pattern travelPattern = Pattern.compile(".*portal\\/travel*.*");
 
-	@Mod.EventHandler
-	public void preInit(final FMLPreInitializationEvent event) {
-		Config.instance.preInit(event);
-	}
-
-	@Mod.EventHandler
-	public void init(final FMLInitializationEvent event) {
-		Config.instance.init(event);
+	public SoundPhysics() {
+		log("Mod Constructor");
+		//FMLJavaModLoadingContext.get().getModEventBus().addListener(this::setup);
+		MinecraftForge.EVENT_BUS.register(SoundPhysics.class);
+		ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.CONFIG_SPEC);
 	}
 
 	private static int auxFXSlot0;
@@ -86,26 +96,21 @@ public class SoundPhysics {
 	private static int sendFilter3;
 
 	private static Minecraft mc;
-	private static SoundSystem sndSystem;
-
-	private static SoundCategory lastSoundCategory;
-	private static String lastSoundName;
-	private static ISound.AttenuationType lastSoundAtt;
+	private static SoundEngine sndEngine;
 
 	// THESE VARIABLES ARE CONSTANTLY ACCESSED AND USED BY ASM INJECTED CODE! DO
 	// NOT REMOVE!
-	public static int attenuationModel = SoundSystemConfig.ATTENUATION_ROLLOFF;
+	public static int attenuationModel = AL10.AL_INVERSE_DISTANCE_CLAMPED;
+	public static float referenceDistance = Config.referenceDistance;
 	public static float globalRolloffFactor = Config.rolloffFactor;
 	public static float globalVolumeMultiplier0 = Config.globalVolumeMultiplier; // 0 is because of DS trying to read the value of the original name
 	public static float globalReverbMultiplier = 0.7f * Config.globalReverbGain;
 	public static double soundDistanceAllowance = Config.soundDistanceAllowance;
 
-	/**
-	 * CALLED BY ASM INJECTED CODE!
-	 */
-	public static void init(SoundSystem snds) {
-		mc = Minecraft.getMinecraft();
-		sndSystem = snds;
+	public static void init(SoundEngine engine) {
+		log("Sound Physics Init");
+		mc = Minecraft.getInstance();
+		sndEngine = engine;
 		try {
 			setupEFX();
 		} catch (Throwable e) {
@@ -115,6 +120,7 @@ public class SoundPhysics {
 	}
 
 	public static void applyConfigChanges() {
+		referenceDistance = Config.referenceDistance;
 		globalRolloffFactor = Config.rolloffFactor;
 		globalReverbMultiplier = 0.7f * Config.globalReverbGain;
 		soundDistanceAllowance = Config.soundDistanceAllowance;
@@ -130,10 +136,20 @@ public class SoundPhysics {
 		}
 	}
 
+	// I tried to use an IntBuffer for the attributes to not move the createcontext here
+	// but it doesn't work for fuckall reason
+	public static long createALContext(long device, ALCCapabilities caps) {
+		int[] attribs = null;
+		if (caps.ALC_EXT_EFX) { // We need 4, the default is 2 and the hard max is 16
+			attribs = new int[]{EXTEfx.ALC_MAX_AUXILIARY_SENDS, 8, 0};
+		}
+		return ALC10.alcCreateContext(device, attribs);
+	}
+
 	private static void setupEFX() {
 		// Get current context and device
-		final ALCcontext currentContext = ALC10.alcGetCurrentContext();
-		final ALCdevice currentDevice = ALC10.alcGetContextsDevice(currentContext);
+		final long currentContext = ALC10.alcGetCurrentContext();
+		final long currentDevice = ALC10.alcGetContextsDevice(currentContext);
 
 		if (ALC10.alcIsExtensionPresent(currentDevice, "ALC_EXT_EFX")) {
 			log("EFX Extension recognized.");
@@ -142,59 +158,127 @@ public class SoundPhysics {
 			return;
 		}
 
+		int nbSends = ALC10.alcGetInteger(currentDevice, EXTEfx.ALC_MAX_AUXILIARY_SENDS);
+
+		if (nbSends < 4) {
+			logError("Not enough Aux Sends ("+String.valueOf(nbSends)+"). Aborting");
+			return;
+		}
+
+		log(String.valueOf(nbSends)+" of aux sends");
+
 		// Create auxiliary effect slots
-		auxFXSlot0 = EFX10.alGenAuxiliaryEffectSlots();
+		auxFXSlot0 = EXTEfx.alGenAuxiliaryEffectSlots();
 		log("Aux slot " + auxFXSlot0 + " created");
-		EFX10.alAuxiliaryEffectSloti(auxFXSlot0, EFX10.AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, AL10.AL_TRUE);
+		EXTEfx.alAuxiliaryEffectSloti(auxFXSlot0, EXTEfx.AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, AL10.AL_TRUE);
 
-		auxFXSlot1 = EFX10.alGenAuxiliaryEffectSlots();
+		auxFXSlot1 = EXTEfx.alGenAuxiliaryEffectSlots();
 		log("Aux slot " + auxFXSlot1 + " created");
-		EFX10.alAuxiliaryEffectSloti(auxFXSlot1, EFX10.AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, AL10.AL_TRUE);
+		EXTEfx.alAuxiliaryEffectSloti(auxFXSlot1, EXTEfx.AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, AL10.AL_TRUE);
 
-		auxFXSlot2 = EFX10.alGenAuxiliaryEffectSlots();
+		auxFXSlot2 = EXTEfx.alGenAuxiliaryEffectSlots();
 		log("Aux slot " + auxFXSlot2 + " created");
-		EFX10.alAuxiliaryEffectSloti(auxFXSlot2, EFX10.AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, AL10.AL_TRUE);
+		EXTEfx.alAuxiliaryEffectSloti(auxFXSlot2, EXTEfx.AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, AL10.AL_TRUE);
 
-		auxFXSlot3 = EFX10.alGenAuxiliaryEffectSlots();
+		auxFXSlot3 = EXTEfx.alGenAuxiliaryEffectSlots();
 		log("Aux slot " + auxFXSlot3 + " created");
-		EFX10.alAuxiliaryEffectSloti(auxFXSlot3, EFX10.AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, AL10.AL_TRUE);
+		EXTEfx.alAuxiliaryEffectSloti(auxFXSlot3, EXTEfx.AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, AL10.AL_TRUE);
 		checkErrorLog("Failed creating auxiliary effect slots!");
 
-		reverb0 = EFX10.alGenEffects();
-		EFX10.alEffecti(reverb0, EFX10.AL_EFFECT_TYPE, EFX10.AL_EFFECT_EAXREVERB);
+		reverb0 = EXTEfx.alGenEffects();
+		EXTEfx.alEffecti(reverb0, EXTEfx.AL_EFFECT_TYPE, EXTEfx.AL_EFFECT_EAXREVERB);
 		checkErrorLog("Failed creating reverb effect slot 0!");
-		reverb1 = EFX10.alGenEffects();
-		EFX10.alEffecti(reverb1, EFX10.AL_EFFECT_TYPE, EFX10.AL_EFFECT_EAXREVERB);
+		reverb1 = EXTEfx.alGenEffects();
+		EXTEfx.alEffecti(reverb1, EXTEfx.AL_EFFECT_TYPE, EXTEfx.AL_EFFECT_EAXREVERB);
 		checkErrorLog("Failed creating reverb effect slot 1!");
-		reverb2 = EFX10.alGenEffects();
-		EFX10.alEffecti(reverb2, EFX10.AL_EFFECT_TYPE, EFX10.AL_EFFECT_EAXREVERB);
+		reverb2 = EXTEfx.alGenEffects();
+		EXTEfx.alEffecti(reverb2, EXTEfx.AL_EFFECT_TYPE, EXTEfx.AL_EFFECT_EAXREVERB);
 		checkErrorLog("Failed creating reverb effect slot 2!");
-		reverb3 = EFX10.alGenEffects();
-		EFX10.alEffecti(reverb3, EFX10.AL_EFFECT_TYPE, EFX10.AL_EFFECT_EAXREVERB);
+		reverb3 = EXTEfx.alGenEffects();
+		EXTEfx.alEffecti(reverb3, EXTEfx.AL_EFFECT_TYPE, EXTEfx.AL_EFFECT_EAXREVERB);
 		checkErrorLog("Failed creating reverb effect slot 3!");
 
 		// Create filters
-		directFilter0 = EFX10.alGenFilters();
-		EFX10.alFilteri(directFilter0, EFX10.AL_FILTER_TYPE, EFX10.AL_FILTER_LOWPASS);
+		directFilter0 = EXTEfx.alGenFilters();
+		EXTEfx.alFilteri(directFilter0, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
 
-		sendFilter0 = EFX10.alGenFilters();
-		EFX10.alFilteri(sendFilter0, EFX10.AL_FILTER_TYPE, EFX10.AL_FILTER_LOWPASS);
+		sendFilter0 = EXTEfx.alGenFilters();
+		EXTEfx.alFilteri(sendFilter0, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
 
-		sendFilter1 = EFX10.alGenFilters();
-		EFX10.alFilteri(sendFilter1, EFX10.AL_FILTER_TYPE, EFX10.AL_FILTER_LOWPASS);
+		sendFilter1 = EXTEfx.alGenFilters();
+		EXTEfx.alFilteri(sendFilter1, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
 
-		sendFilter2 = EFX10.alGenFilters();
-		EFX10.alFilteri(sendFilter2, EFX10.AL_FILTER_TYPE, EFX10.AL_FILTER_LOWPASS);
+		sendFilter2 = EXTEfx.alGenFilters();
+		EXTEfx.alFilteri(sendFilter2, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
 
-		sendFilter3 = EFX10.alGenFilters();
-		EFX10.alFilteri(sendFilter3, EFX10.AL_FILTER_TYPE, EFX10.AL_FILTER_LOWPASS);
+		sendFilter3 = EXTEfx.alGenFilters();
+		EXTEfx.alFilteri(sendFilter3, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
 		checkErrorLog("Error creating lowpass filters!");
 
 		applyConfigChanges();
 	}
 
-	private static SoundCategory getSoundCategory(final SoundCategory sc, final String name) {
-		if (Config.noteBlockEnable && sc == SoundCategory.RECORDS && noteBlockPattern.matcher(name).matches()) {
+	/**
+	 * CALLED BY ASM INJECTED CODE!
+	 */
+	public static String getSoundName(final ISound sound) {
+		Sound s = sound.getSound();
+		if (s == null || s == SoundHandler.MISSING_SOUND) {
+			return sound.getSoundLocation().getPath();
+		} else {
+			return sound.getSoundLocation().getPath()+"|"+s.getSoundLocation().getPath();
+		}
+	}
+
+	/**
+	 * CALLED BY ASM INJECTED CODE!
+	 */
+	/*public static void setLastSound(final ISound snd, final SoundCategory sc, final ResourceLocation soundRes, final ResourceLocation eventRes) {
+		lastSoundName = eventRes.toString()+"|"+soundRes.getPath(); // Quick and dirty hack to check the event and sound name
+		lastSoundCategory = getSoundCategory(sc,lastSoundName);
+		lastSoundAtt = snd.getAttenuationType();
+		if (snd instanceof MovingSound)               // Hacky fix until i properly do moving sounds (I'm currently thinking about how)
+			lastSoundCategory = SoundCategory.MASTER; // because all (at least vanilla) moving sounds don't init their position when played
+	}*/
+
+	/**
+	 * CALLED BY ASM INJECTED CODE!
+	 */
+	/*public static void setLastSound(final SoundCategory sc, final String soundName) {
+		lastSoundCategory = sc;
+		lastSoundName = soundName;
+		lastSoundAtt = ISound.AttenuationType.LINEAR;
+	}*/
+
+	/**
+	 * CALLED BY ASM INJECTED CODE!
+	 */
+	// For IC2
+	/*public static void setLastSound(final int position, final String soundName) {
+		lastSoundCategory = position == 0 ? SoundCategory.BLOCKS : SoundCategory.PLAYERS;
+		lastSoundName = "ic2:"+soundName;
+		lastSoundAtt = ISound.AttenuationType.LINEAR;
+	}*/
+
+	/**
+	 * CALLED BY ASM INJECTED CODE!
+	 */
+	/*public static int ic2DistanceCheckHook(float i, float dst, float x1, float y1, float z1, float x2, float y2, float z2) {
+		if (i >= dst ||
+			(MathHelper.floor(x1) == MathHelper.floor(x2) &&
+			MathHelper.floor(y1) == MathHelper.floor(y2) &&
+			MathHelper.floor(z1) == MathHelper.floor(z2))) return 1;
+		if (dst == i) return 0;
+		return -1;
+	}*/
+
+	public static SoundCategory getSoundCategory(final ISound sound) {
+		return getSoundCategory(sound,getSoundName(sound));
+	}	
+
+	public static SoundCategory getSoundCategory(final ISound sound, final String soundName) {
+		SoundCategory sc = sound.getCategory();
+		if (Config.noteBlockEnable && sc == SoundCategory.RECORDS && noteBlockPattern.matcher(soundName).matches()) {
 			return SoundCategory.BLOCKS;
 		} else {
 			return sc;
@@ -204,51 +288,10 @@ public class SoundPhysics {
 	/**
 	 * CALLED BY ASM INJECTED CODE!
 	 */
-	public static void setLastSound(final ISound snd, final SoundCategory sc, final ResourceLocation soundRes, final ResourceLocation eventRes) {
-		lastSoundName = eventRes.toString()+"|"+soundRes.getPath(); // Quick and dirty hack to check the event and sound name
-		lastSoundCategory = getSoundCategory(sc,lastSoundName);
-		lastSoundAtt = snd.getAttenuationType();
-		if (snd instanceof MovingSound)               // Hacky fix until i properly do moving sounds (I'm currently thinking about how)
-			lastSoundCategory = SoundCategory.MASTER; // because all (at least vanilla) moving sounds don't init their position when played
-	}
-
-	/**
-	 * CALLED BY ASM INJECTED CODE!
-	 */
-	public static void setLastSound(final SoundCategory sc, final String soundName) {
-		lastSoundCategory = sc;
-		lastSoundName = soundName;
-		lastSoundAtt = ISound.AttenuationType.LINEAR;
-	}
-
-	/**
-	 * CALLED BY ASM INJECTED CODE!
-	 */
-	// For IC2
-	public static void setLastSound(final int position, final String soundName) {
-		lastSoundCategory = position == 0 ? SoundCategory.BLOCKS : SoundCategory.PLAYERS;
-		lastSoundName = "ic2:"+soundName;
-		lastSoundAtt = ISound.AttenuationType.LINEAR;
-	}
-
-	/**
-	 * CALLED BY ASM INJECTED CODE!
-	 */
-	public static int ic2DistanceCheckHook(float i, float dst, float x1, float y1, float z1, float x2, float y2, float z2) {
-		if (i >= dst ||
-			(MathHelper.floor(x1) == MathHelper.floor(x2) &&
-			MathHelper.floor(y1) == MathHelper.floor(y2) &&
-			MathHelper.floor(z1) == MathHelper.floor(z2))) return 1;
-		if (dst == i) return 0;
-		return -1;
-	}
-
-	/**
-	 * CALLED BY ASM INJECTED CODE!
-	 */
-	public static float applyGlobalVolumeMultiplier(final float volume) {
-		if (!Config.volumeMulOnlyAffected || !(mc.player == null || mc.world == null || lastSoundCategory == SoundCategory.MASTER ||
-			lastSoundAtt == ISound.AttenuationType.NONE || lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC)) {
+	public static float applyGlobalVolumeMultiplier(final float volume, final ISound sound) {
+		SoundCategory cat = getSoundCategory(sound);
+		if (!Config.volumeMulOnlyAffected || !(mc.player == null || mc.world == null || sound.getAttenuationType() == ISound.AttenuationType.NONE ||
+			sound.isGlobal() || cat == SoundCategory.RECORDS || cat == SoundCategory.MUSIC || cat == SoundCategory.RECORDS)) {
 			return volume*globalVolumeMultiplier0;
 		} else {
 			return volume;
@@ -259,17 +302,27 @@ public class SoundPhysics {
 	 * CALLED BY ASM INJECTED CODE!
 	 */
 	// For sounds that get played normally
-	public static void onPlaySound(final float posX, final float posY, final float posZ, final int sourceID) {
+	/*public static void onPlaySound(final float posX, final float posY, final float posZ, final int sourceID) {
 		onPlaySound(posX, posY, posZ, sourceID, lastSoundCategory, lastSoundName, lastSoundAtt);
-	}
+	}*/
+
+	/**
+	 * CALLED BY ASM INJECTED CODE!
+	 */
+	// For sounds that get played normally
+	public static void onPlaySound(final ISound snd, final SoundSource sndsrc) {
+		if (snd.isGlobal()) return;
+		final String name = getSoundName(snd);
+		onPlaySound(snd.getX(), snd.getY(), snd.getZ(), sndsrc.field_216441_b, getSoundCategory(snd, name), name, snd.getAttenuationType());
+	}	
 
 	/**
 	 * CALLED BY ASM INJECTED CODE!
 	 */
 	// For sounds that get played using OpenAL directly or just not using the minecraft sound system
-	public static void onPlaySoundAL(final float posX, final float posY, final float posZ, final int sourceID) {
-		onPlaySound(posX, posY, posZ, sourceID, SoundCategory.AMBIENT, "openal", ISound.AttenuationType.LINEAR);
-	}
+	/*public static void onPlaySoundAL(final float posX, final float posY, final float posZ, final int sourceID) {
+		onPlaySound(posX, posY, posZ, sourceID, SoundCategory.MASTER, "openal", ISound.AttenuationType.LINEAR);
+	}*/
 
 	/**
 	 * CALLED BY ASM INJECTED CODE!
@@ -282,9 +335,10 @@ public class SoundPhysics {
 	/**
 	 * CALLED BY ASM INJECTED CODE!
 	 */
-	public static SoundBuffer onLoadSound(SoundBuffer buff, String filename) {
+	public static AudioStreamBuffer onLoadSound(AudioStreamBuffer buff, ResourceLocation resource) {
 		if (buff == null || buff.audioFormat.getChannels() == 1 || !Config.autoSteroDownmix) return buff;
-		if (mc == null || mc.player == null || mc.world == null || lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC ||
+		String filename = resource.getPath();			// This should never happen anyways because music and records are streamed
+		if (mc == null || mc.player == null || mc.world == null /*|| lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC*/ ||
 			uiPattern.matcher(filename).matches() || clickPattern.matcher(filename).matches() || betweenlandsPattern.matcher(filename).matches() ||
 			travelPattern.matcher(filename).matches()) {
 			if (Config.autoSteroDownmixLogging) log("Not converting sound '"+filename+"'("+buff.audioFormat.toString()+")");
@@ -297,19 +351,24 @@ public class SoundPhysics {
 												1, orignalformat.getFrameSize(), orignalformat.getFrameRate(), bigendian);
 		if (Config.autoSteroDownmixLogging) log("Converting sound '"+filename+"'("+orignalformat.toString()+") to mono ("+monoformat.toString()+")");
 
-		ByteBuffer bb = ByteBuffer.wrap(buff.audioData,0,buff.audioData.length);
-		bb.order(bigendian ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+		ByteBuffer src = buff.field_216475_a;
+		src.order(bigendian ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+		src.rewind();
+		int size = src.remaining();
+
 		if (bits == 8) {
-			for (int i = 0; i < buff.audioData.length; i+=2) {
-				bb.put(i/2,(byte)((bb.get(i)+bb.get(i+1))/2));
+			for (int i = 0; i < size; i+=2) {
+				src.put(i/2,(byte)((src.get(i)+src.get(i+1))/2));
 			}
 		} else if (bits == 16) {
-			for (int i = 0; i < buff.audioData.length; i+=4) {
-				bb.putShort((i/2),(short)((bb.getShort(i)+bb.getShort(i+2))/2));
+			for (int i = 0; i < size; i+=4) {
+				src.putShort((i/2),(short)((src.getShort(i)+src.getShort(i+2))/2));
 			}
 		}
+		
+		src.flip();
+
 		buff.audioFormat = monoformat;
-		buff.trimData(buff.audioData.length/2);
 		return buff;
 	}
 
@@ -318,7 +377,7 @@ public class SoundPhysics {
 	 */
 	public static double calculateEntitySoundOffset(final Entity entity, final SoundEvent sound) {
 		if (sound == null) return entity.getEyeHeight();
-		if (stepPattern.matcher(sound.soundName.getPath()).matches()) {
+		if (stepPattern.matcher(sound.getName().getPath()).matches()) {
 			return 0;
 		}
 
@@ -328,39 +387,54 @@ public class SoundPhysics {
 	/**
 	 * CALLED BY ASM INJECTED CODE!
 	 */
-	public static Vec3d computronicsOffset(Vec3d or, TileEntity te, PropertyDirection pd) {
+	/*public static Vec3d computronicsOffset(Vec3d or, TileEntity te, PropertyDirection pd) {
 		if (!te.hasWorld()) return or;
 		EnumFacing ef = te.getWorld().getBlockState(te.getPos()).getValue(pd);
 		Vec3d efv = getNormalFromFacing(ef).scale(0.51);
 		return or.add(efv);
-	}
+	}*/
 
 	// Copy of isRainingAt
-	private static boolean isSnowingAt(BlockPos position, boolean check_rain) {
+	/*private static boolean isSnowingAt(BlockPos position, boolean check_rain) {
 		if ((check_rain && !mc.world.isRaining()) || !mc.world.canSeeSky(position) ||
 			mc.world.getPrecipitationHeight(position).getY() > position.getY()) {
 			return false;
 		} else {
 			return mc.world.canSnowAt(position, false) || mc.world.getBiome(position).getEnableSnow();
 		}
+	}*/
+
+	// Copy of isRainingAt
+	public static boolean isSnowingAt(BlockPos position, boolean check_rain) {
+		if (check_rain && !mc.world.isRaining()) {
+			return false;
+		} else if (!mc.world.canSeeSky(position)) {
+			return false;
+		} else if (mc.world.getHeight(Heightmap.Type.MOTION_BLOCKING, position).getY() > position.getY()) {
+			return false;
+		} else {
+			return mc.world.getBiome(position).getPrecipitation() == Biome.RainType.SNOW;
+		}
 	}
 
 	@SuppressWarnings("deprecation")
 	private static float getBlockReflectivity(final BlockPos blockPos) {
 		final Block block = mc.world.getBlockState(blockPos).getBlock();
-		final SoundType soundType = block.getSoundType();
+		final SoundType soundType = block.getSoundType(null); // The argument is unused
 
 		float reflectivity = 0.5f;
 
 		if (soundType == SoundType.STONE) {
 			reflectivity = Config.stoneReflectivity;
-		} else if (soundType == SoundType.WOOD) {
+		} else if (soundType == SoundType.WOOD || soundType == SoundType.SCAFFOLDING) {
 			reflectivity = Config.woodReflectivity;
 		} else if (soundType == SoundType.GROUND) {
 			reflectivity = Config.groundReflectivity;
-		} else if (soundType == SoundType.PLANT) {
+		} else if (soundType == SoundType.PLANT || soundType == SoundType.WET_GRASS || soundType == SoundType.CORAL ||
+				   soundType == SoundType.BAMBOO || soundType == SoundType.BAMBOO_SAPLING || soundType == SoundType.CROP ||
+				   soundType == SoundType.STEM || soundType == SoundType.NETHER_WART || soundType == SoundType.SWEET_BERRY_BUSH) {
 			reflectivity = Config.plantReflectivity;
-		} else if (soundType == SoundType.METAL) {
+		} else if (soundType == SoundType.METAL || soundType == SoundType.LANTERN) {
 			reflectivity = Config.metalReflectivity;
 		} else if (soundType == SoundType.GLASS) {
 			reflectivity = Config.glassReflectivity;
@@ -374,6 +448,8 @@ public class SoundPhysics {
 			reflectivity = Config.woodReflectivity;
 		} else if (soundType == SoundType.ANVIL) {
 			reflectivity = Config.metalReflectivity;
+		} else if (soundType == SoundType.SLIME || soundType == SoundType.field_226947_m_) { // HONEY_BLOCK
+			reflectivity = Config.slimeReflectivity;
 		}
 
 		reflectivity *= Config.globalBlockReflectance;
@@ -381,7 +457,7 @@ public class SoundPhysics {
 		return reflectivity;
 	}
 
-	private static Vec3d getNormalFromFacing(final EnumFacing sideHit) {
+	private static Vec3d getNormalFromFacing(final Direction sideHit) {
 		return new Vec3d(sideHit.getDirectionVec());
 	}
 
@@ -437,13 +513,18 @@ public class SoundPhysics {
 		return new Vec3d(soundX + offsetX, soundY + offsetY, soundZ + offsetZ);
 	}
 
-	private static float getPlayerEyeHeight() throws IllegalStateException {
+	/*private static float getPlayerEyeHeight() throws IllegalStateException {
 		ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mc.player.getDataManager().lock;
 		if (lock.isWriteLocked()) {
 			logError("Deadlock detected, avoiding it by throwing exception");
 			throw new IllegalStateException("Player's Data Mananger is write locked");
 		}
 		return mc.player.getEyeHeight();
+	}*/
+
+	private static BlockRayTraceResult rayTraceBlocks(Vec3d start, Vec3d stop, boolean stopOnLiquid) {
+		return mc.world.rayTraceBlocks(new RayTraceContext(start, stop, RayTraceContext.BlockMode.COLLIDER,
+										stopOnLiquid ? RayTraceContext.FluidMode.ANY : RayTraceContext.FluidMode.NONE, mc.player));
 	}
 
 	@SuppressWarnings("deprecation")
@@ -459,7 +540,7 @@ public class SoundPhysics {
 				return;
 			}
 
-			final boolean isRain = rainPattern.matcher(name).matches();
+			final boolean isRain = category == SoundCategory.WEATHER; //rainPattern.matcher(name).matches();
 
 			if (Config.skipRainOcclusionTracing && isRain) {
 				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
@@ -469,7 +550,8 @@ public class SoundPhysics {
 			float directCutoff = 1.0f;
 			final float absorptionCoeff = Config.globalBlockAbsorption * 3.0f;
 
-			final Vec3d playerPos = new Vec3d(mc.player.posX, mc.player.posY + getPlayerEyeHeight(), mc.player.posZ);
+			//final Vec3d playerPos = new Vec3d(mc.player.getPosX(), mc.player.getPosY() + getPlayerEyeHeight(), mc.player.getPosZ());
+			final Vec3d playerPos = new Vec3d(mc.player.getPosX(), mc.player.getPosY() + mc.player.getEyeHeight(), mc.player.getPosZ());
 			final Vec3d soundPos = offsetSoundByName(posX, posY, posZ, playerPos, name, category);
 			final Vec3d normalToPlayer = playerPos.subtract(soundPos).normalize();
 
@@ -492,25 +574,27 @@ public class SoundPhysics {
 			float occlusionAccumulation = 0.0f;
 
 			for (int i = 0; i < 10; i++) {
-				final RayTraceResult rayHit = mc.world.rayTraceBlocks(rayOrigin, playerPos, true);
+				final BlockRayTraceResult rayHit = rayTraceBlocks(rayOrigin, playerPos, true);
 
-				if (rayHit == null) {
+				if (rayHit.getType() == RayTraceResult.Type.MISS) {
 					break;
 				}
 
-				final Block blockHit = mc.world.getBlockState(rayHit.getBlockPos()).getBlock();
+				final BlockState blockHit = mc.world.getBlockState(rayHit.getPos());
 
 				float blockOcclusion = 1.0f;
 
-				if (!blockHit.isOpaqueCube(blockHit.getDefaultState())) {
+				if (!blockHit.isOpaqueCube(mc.world, rayHit.getPos())) {
 					// log("not a solid block!");
 					blockOcclusion *= 0.15f;
 				}
 
 				occlusionAccumulation += blockOcclusion;
 
-				rayOrigin = new Vec3d(rayHit.hitVec.x + normalToPlayer.x * 0.1, rayHit.hitVec.y + normalToPlayer.y * 0.1,
-						rayHit.hitVec.z + normalToPlayer.z * 0.1);
+				Vec3d hitVec = rayHit.getHitVec();
+
+				rayOrigin = new Vec3d(hitVec.x + normalToPlayer.x * 0.1, hitVec.y + normalToPlayer.y * 0.1,
+						hitVec.z + normalToPlayer.z * 0.1);
 			}
 
 			directCutoff = (float) Math.exp(-occlusionAccumulation * absorptionCoeff);
@@ -527,7 +611,7 @@ public class SoundPhysics {
 			float sendCutoff2 = 1.0f;
 			float sendCutoff3 = 1.0f;
 
-			if (mc.player.isInsideOfMaterial(Material.WATER)) {
+			if (mc.player.canSwim()) { // canSwim also checks if the head is in the water
 				directCutoff *= 1.0f - Config.underwaterFilter;
 			}
 
@@ -566,16 +650,16 @@ public class SoundPhysics {
 				final Vec3d rayEnd = new Vec3d(rayStart.x + rayDir.x * maxDistance, rayStart.y + rayDir.y * maxDistance,
 						rayStart.z + rayDir.z * maxDistance);
 
-				final RayTraceResult rayHit = mc.world.rayTraceBlocks(rayStart, rayEnd, true);
+				final BlockRayTraceResult rayHit = rayTraceBlocks(rayStart, rayEnd, true);
 
-				if (rayHit != null) {
-					final double rayLength = soundPos.distanceTo(rayHit.hitVec);
-
+				if (rayHit.getType() != RayTraceResult.Type.MISS) {
 					// Additional bounces
-					BlockPos lastHitBlock = rayHit.getBlockPos();
-					Vec3d lastHitPos = rayHit.hitVec;
-					Vec3d lastHitNormal = getNormalFromFacing(rayHit.sideHit);
+					BlockPos lastHitBlock = rayHit.getPos();
+					Vec3d lastHitPos = rayHit.getHitVec();
+					Vec3d lastHitNormal = getNormalFromFacing(rayHit.getFace());
 					Vec3d lastRayDir = rayDir;
+
+					final double rayLength = soundPos.distanceTo(lastHitPos);
 
 					float totalRayDistance = (float) rayLength;
 
@@ -588,25 +672,25 @@ public class SoundPhysics {
 						final Vec3d newRayEnd = new Vec3d(newRayStart.x + newRayDir.x * maxDistance,
 								newRayStart.y + newRayDir.y * maxDistance, newRayStart.z + newRayDir.z * maxDistance);
 
-						final RayTraceResult newRayHit = mc.world.rayTraceBlocks(newRayStart, newRayEnd, true);
+						final BlockRayTraceResult newRayHit = rayTraceBlocks(newRayStart, newRayEnd, true);
 
 						float energyTowardsPlayer = 0.25f;
 						final float blockReflectivity = getBlockReflectivity(lastHitBlock);
 						energyTowardsPlayer *= blockReflectivity * 0.75f + 0.25f;
 
-						if (newRayHit == null) {
+						if (newRayHit.getType() == RayTraceResult.Type.MISS) {
 							totalRayDistance += lastHitPos.distanceTo(playerPos);
 						} else {
-							final double newRayLength = lastHitPos.distanceTo(newRayHit.hitVec);
+							lastHitPos = newRayHit.getHitVec();
+							lastHitNormal = getNormalFromFacing(newRayHit.getFace());
+							lastRayDir = newRayDir;
+							lastHitBlock = newRayHit.getPos();
 
-							bounceReflectivityRatio[j] += blockReflectivity;
+							final double newRayLength = lastHitPos.distanceTo(lastHitPos);
 
 							totalRayDistance += newRayLength;
 
-							lastHitPos = newRayHit.hitVec;
-							lastHitNormal = getNormalFromFacing(newRayHit.sideHit);
-							lastRayDir = newRayDir;
-							lastHitBlock = newRayHit.getBlockPos();
+							bounceReflectivityRatio[j] += blockReflectivity;
 
 							// Cast one final ray towards the player. If it's
 							// unobstructed, then the sound source and the player
@@ -616,9 +700,9 @@ public class SoundPhysics {
 								final Vec3d finalRayStart = new Vec3d(lastHitPos.x + lastHitNormal.x * 0.01,
 										lastHitPos.y + lastHitNormal.y * 0.01, lastHitPos.z + lastHitNormal.z * 0.01);
 
-								final RayTraceResult finalRayHit = mc.world.rayTraceBlocks(finalRayStart, playerPos, true);
+								final BlockRayTraceResult finalRayHit = rayTraceBlocks(finalRayStart, playerPos, true);
 
-								if (finalRayHit == null) {
+								if (finalRayHit.getType() == RayTraceResult.Type.MISS) {
 									// log("Secondary ray hit the player!");
 									sharedAirspace += 1.0f;
 								}
@@ -638,7 +722,7 @@ public class SoundPhysics {
 						sendGain3 += cross3 * energyTowardsPlayer * 12.8f * rcpTotalRays;
 
 						// Nowhere to bounce off of, stop bouncing!
-						if (newRayHit == null) {
+						if (newRayHit.getType() == RayTraceResult.Type.MISS) {
 							break;
 						}
 					}
@@ -704,7 +788,7 @@ public class SoundPhysics {
 				sendCutoff3 *= 0.4f;
 			}
 
-			if (Config.midnightPatching && Config.midnightPatchingFix && mc.world.provider.getDimensionType().getName() == "midnight") {
+			/*if (Config.midnightPatching && Config.midnightPatchingFix && mc.world.provider.getDimensionType().getName() == "midnight") {
 				// Since the patch removes the incompatble reverb, readd some reverb everywhere
 				// It's not a great fix but it works fine
 				sendGain1 = MathHelper.clamp(sendGain1, 0.3f, 1.0f);
@@ -713,7 +797,7 @@ public class SoundPhysics {
 				sendCutoff1 = MathHelper.clamp(sendCutoff1, 0.3f, 1.0f);
 				sendCutoff2 = MathHelper.clamp(sendCutoff2, 0.5f, 1.0f);
 				sendCutoff3 = MathHelper.clamp(sendCutoff3, 0.7f, 1.0f);
-			}
+			}*/
 
 			setEnvironment(sourceID, sendGain0, sendGain1, sendGain2, sendGain3, sendCutoff0, sendCutoff1, sendCutoff2,
 					sendCutoff3, directCutoff, directGain, airAbsorptionFactor);
@@ -729,27 +813,27 @@ public class SoundPhysics {
 			final float airAbsorptionFactor) {
 		// Set reverb send filter values and set source to send to all reverb fx
 		// slots
-		EFX10.alFilterf(sendFilter0, EFX10.AL_LOWPASS_GAIN, sendGain0);
-		EFX10.alFilterf(sendFilter0, EFX10.AL_LOWPASS_GAINHF, sendCutoff0);
-		AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot0, 0, sendFilter0);
+		EXTEfx.alFilterf(sendFilter0, EXTEfx.AL_LOWPASS_GAIN, sendGain0);
+		EXTEfx.alFilterf(sendFilter0, EXTEfx.AL_LOWPASS_GAINHF, sendCutoff0);
+		AL11.alSource3i(sourceID, EXTEfx.AL_AUXILIARY_SEND_FILTER, auxFXSlot0, 0, sendFilter0);
 
-		EFX10.alFilterf(sendFilter1, EFX10.AL_LOWPASS_GAIN, sendGain1);
-		EFX10.alFilterf(sendFilter1, EFX10.AL_LOWPASS_GAINHF, sendCutoff1);
-		AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot1, 1, sendFilter1);
+		EXTEfx.alFilterf(sendFilter1, EXTEfx.AL_LOWPASS_GAIN, sendGain1);
+		EXTEfx.alFilterf(sendFilter1, EXTEfx.AL_LOWPASS_GAINHF, sendCutoff1);
+		AL11.alSource3i(sourceID, EXTEfx.AL_AUXILIARY_SEND_FILTER, auxFXSlot1, 1, sendFilter1);
 
-		EFX10.alFilterf(sendFilter2, EFX10.AL_LOWPASS_GAIN, sendGain2);
-		EFX10.alFilterf(sendFilter2, EFX10.AL_LOWPASS_GAINHF, sendCutoff2);
-		AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot2, 2, sendFilter2);
+		EXTEfx.alFilterf(sendFilter2, EXTEfx.AL_LOWPASS_GAIN, sendGain2);
+		EXTEfx.alFilterf(sendFilter2, EXTEfx.AL_LOWPASS_GAINHF, sendCutoff2);
+		AL11.alSource3i(sourceID, EXTEfx.AL_AUXILIARY_SEND_FILTER, auxFXSlot2, 2, sendFilter2);
 
-		EFX10.alFilterf(sendFilter3, EFX10.AL_LOWPASS_GAIN, sendGain3);
-		EFX10.alFilterf(sendFilter3, EFX10.AL_LOWPASS_GAINHF, sendCutoff3);
-		AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot3, 3, sendFilter3);
+		EXTEfx.alFilterf(sendFilter3, EXTEfx.AL_LOWPASS_GAIN, sendGain3);
+		EXTEfx.alFilterf(sendFilter3, EXTEfx.AL_LOWPASS_GAINHF, sendCutoff3);
+		AL11.alSource3i(sourceID, EXTEfx.AL_AUXILIARY_SEND_FILTER, auxFXSlot3, 3, sendFilter3);
 
-		EFX10.alFilterf(directFilter0, EFX10.AL_LOWPASS_GAIN, directGain);
-		EFX10.alFilterf(directFilter0, EFX10.AL_LOWPASS_GAINHF, directCutoff);
-		AL10.alSourcei(sourceID, EFX10.AL_DIRECT_FILTER, directFilter0);
+		EXTEfx.alFilterf(directFilter0, EXTEfx.AL_LOWPASS_GAIN, directGain);
+		EXTEfx.alFilterf(directFilter0, EXTEfx.AL_LOWPASS_GAINHF, directCutoff);
+		AL10.alSourcei(sourceID, EXTEfx.AL_DIRECT_FILTER, directFilter0);
 
-		AL10.alSourcef(sourceID, EFX10.AL_AIR_ABSORPTION_FACTOR, MathHelper.clamp(Config.airAbsorption * airAbsorptionFactor,0.0f,10.0f));
+		AL10.alSourcef(sourceID, EXTEfx.AL_AIR_ABSORPTION_FACTOR, MathHelper.clamp(Config.airAbsorption * airAbsorptionFactor,0.0f,10.0f));
 		checkErrorLog("Error while setting environment for source: " + sourceID);
 	}
 
@@ -758,47 +842,47 @@ public class SoundPhysics {
 	 * effect.
 	 */
 	protected static void setReverbParams(final ReverbParams r, final int auxFXSlot, final int reverbSlot) {
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_DENSITY, r.density);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_DENSITY, r.density);
 		checkErrorLog("Error while assigning reverb density: " + r.density);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_DIFFUSION, r.diffusion);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_DIFFUSION, r.diffusion);
 		checkErrorLog("Error while assigning reverb diffusion: " + r.diffusion);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_GAIN, r.gain);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_GAIN, r.gain);
 		checkErrorLog("Error while assigning reverb gain: " + r.gain);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_GAINHF, r.gainHF);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_GAINHF, r.gainHF);
 		checkErrorLog("Error while assigning reverb gainHF: " + r.gainHF);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_DECAY_TIME, r.decayTime);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_DECAY_TIME, r.decayTime);
 		checkErrorLog("Error while assigning reverb decayTime: " + r.decayTime);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_DECAY_HFRATIO, r.decayHFRatio);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_DECAY_HFRATIO, r.decayHFRatio);
 		checkErrorLog("Error while assigning reverb decayHFRatio: " + r.decayHFRatio);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_REFLECTIONS_GAIN, r.reflectionsGain);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_REFLECTIONS_GAIN, r.reflectionsGain);
 		checkErrorLog("Error while assigning reverb reflectionsGain: " + r.reflectionsGain);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_LATE_REVERB_GAIN, r.lateReverbGain);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_LATE_REVERB_GAIN, r.lateReverbGain);
 		checkErrorLog("Error while assigning reverb lateReverbGain: " + r.lateReverbGain);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_LATE_REVERB_DELAY, r.lateReverbDelay);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_LATE_REVERB_DELAY, r.lateReverbDelay);
 		checkErrorLog("Error while assigning reverb lateReverbDelay: " + r.lateReverbDelay);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_AIR_ABSORPTION_GAINHF, r.airAbsorptionGainHF);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_AIR_ABSORPTION_GAINHF, r.airAbsorptionGainHF);
 		checkErrorLog("Error while assigning reverb airAbsorptionGainHF: " + r.airAbsorptionGainHF);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_ROOM_ROLLOFF_FACTOR, r.roomRolloffFactor);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_ROOM_ROLLOFF_FACTOR, r.roomRolloffFactor);
 		checkErrorLog("Error while assigning reverb roomRolloffFactor: " + r.roomRolloffFactor);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_ECHO_TIME, r.echoTime);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_ECHO_TIME, r.echoTime);
 		checkErrorLog("Error while assigning reverb echoTime: " + r.echoTime);
 
-		EFX10.alEffectf(reverbSlot, EFX10.AL_EAXREVERB_ECHO_DEPTH, r.echoDepth);
+		EXTEfx.alEffectf(reverbSlot, EXTEfx.AL_EAXREVERB_ECHO_DEPTH, r.echoDepth);
 		checkErrorLog("Error while assigning reverb echoDepth: " + r.echoDepth);
 
 		// Attach updated effect object
-		EFX10.alAuxiliaryEffectSloti(auxFXSlot, EFX10.AL_EFFECTSLOT_EFFECT, reverbSlot);
+		EXTEfx.alAuxiliaryEffectSloti(auxFXSlot, EXTEfx.AL_EFFECTSLOT_EFFECT, reverbSlot);
 		checkErrorLog("Error while assigning reverb effect slot: " + reverbSlot);
 	}
 

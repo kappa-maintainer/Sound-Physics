@@ -1,0 +1,28 @@
+modLoader="javafml"
+loaderVersion="[31,)"
+issueTrackerURL="https://github.com/djpadbit/Sound-Physics/issues"
+
+[[mods]] 
+modId="soundphysics"
+version="${file.jarVersion}"
+displayName="Sound Physics"
+displayURL="https://github.com/djpadbit/Sound-Physics"
+#logoFile="examplemod.png"
+authors="Sonic Ether, Daipenger, DJPadbit"
+description='''
+Provides realistic sound attenuation, reverberation, and absorption through blocks.
+'''
+
+#[[dependencies.soundphysics]]
+#modId="forge"
+#mandatory=true
+#versionRange="[31,)"
+#ordering="NONE"
+#side="BOTH"
+#	
+#[[dependencies.soundphysics]]
+#modId="minecraft"
+#mandatory=true
+#versionRange="[1.15.2]"
+#ordering="NONE"
+#side="BOTH"
