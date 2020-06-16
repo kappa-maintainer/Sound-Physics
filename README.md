@@ -3,6 +3,8 @@ This 1.15.2 port took quite some time to make because of the all changes in mine
 
 Most features should work but there are no config gui and the config has be changed in the file, and i didn't test server support (it probably doesn't work).
 
+[Here](https://github.com/djpadbit/Sound-Physics/files/4782969/Sound-Physics-1.15.2-1.0.9.zip)'s a prebuilt jar
+
 A Minecraft mod that provides realistic sound attenuation, reverberation, and absorption through blocks.
 
 Downloads are in the [releases tab](https://github.com/djpadbit/Sound-Physics/releases)
