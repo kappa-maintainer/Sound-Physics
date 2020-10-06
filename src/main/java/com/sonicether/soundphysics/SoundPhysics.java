@@ -51,6 +51,7 @@ import net.minecraft.client.audio.ISound;
 import net.minecraft.client.audio.Sound;
 import net.minecraft.client.audio.SoundSource;
 import net.minecraft.client.audio.SoundHandler;
+import net.minecraft.client.audio.ElytraSound;
 import javax.sound.sampled.AudioFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -73,6 +74,7 @@ public class SoundPhysics {
 	private static final Pattern noteBlockPattern = Pattern.compile(".*block.note.*");
 	private static final Pattern betweenlandsPattern = Pattern.compile("thebetweenlands:sounds\\/rift_.*\\.ogg");
 	private static final Pattern travelPattern = Pattern.compile(".*portal\\/travel*.*");
+	private static final Pattern elytraPattern = Pattern.compile(".*elytra\\/elytra_loop*.*");
 
 	public SoundPhysics() {
 		log("Mod Constructor");
@@ -311,7 +313,7 @@ public class SoundPhysics {
 	 */
 	// For sounds that get played normally
 	public static void onPlaySound(final ISound snd, final SoundSource sndsrc) {
-		if (snd.isGlobal()) return;
+		if (snd.isGlobal() || snd instanceof ElytraSound) return;
 		final String name = getSoundName(snd);
 		onPlaySound(snd.getX(), snd.getY(), snd.getZ(), sndsrc.field_216441_b, getSoundCategory(snd, name), name, snd.getAttenuationType());
 	}	
@@ -340,7 +342,7 @@ public class SoundPhysics {
 		String filename = resource.getPath();			// This should never happen anyways because music and records are streamed
 		if (mc == null || mc.player == null || mc.world == null /*|| lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC*/ ||
 			uiPattern.matcher(filename).matches() || clickPattern.matcher(filename).matches() || betweenlandsPattern.matcher(filename).matches() ||
-			travelPattern.matcher(filename).matches()) {
+			travelPattern.matcher(filename).matches() || elytraPattern.matcher(filename).matches()) {
 			if (Config.autoSteroDownmixLogging) log("Not converting sound '"+filename+"'("+buff.audioFormat.toString()+")");
 			return buff;
 		}
