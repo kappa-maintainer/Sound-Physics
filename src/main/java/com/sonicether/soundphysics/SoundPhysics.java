@@ -34,7 +34,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.BlockRayTraceResult;
 import net.minecraft.util.math.RayTraceContext;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
@@ -315,7 +315,7 @@ public class SoundPhysics {
 	public static void onPlaySound(final ISound snd, final SoundSource sndsrc) {
 		if (snd.isGlobal() || snd instanceof ElytraSound) return;
 		final String name = getSoundName(snd);
-		onPlaySound(snd.getX(), snd.getY(), snd.getZ(), sndsrc.field_216441_b, getSoundCategory(snd, name), name, snd.getAttenuationType());
+		onPlaySound((float)snd.getX(), (float)snd.getY(), (float)snd.getZ(), sndsrc.field_216441_b, getSoundCategory(snd, name), name, snd.getAttenuationType());
 	}	
 
 	/**
@@ -389,10 +389,10 @@ public class SoundPhysics {
 	/**
 	 * CALLED BY ASM INJECTED CODE!
 	 */
-	/*public static Vec3d computronicsOffset(Vec3d or, TileEntity te, PropertyDirection pd) {
+	/*public static Vector3d computronicsOffset(Vector3d or, TileEntity te, PropertyDirection pd) {
 		if (!te.hasWorld()) return or;
 		EnumFacing ef = te.getWorld().getBlockState(te.getPos()).getValue(pd);
-		Vec3d efv = getNormalFromFacing(ef).scale(0.51);
+		Vector3d efv = getNormalFromFacing(ef).scale(0.51);
 		return or.add(efv);
 	}*/
 
@@ -459,22 +459,22 @@ public class SoundPhysics {
 		return reflectivity;
 	}
 
-	private static Vec3d getNormalFromFacing(final Direction sideHit) {
-		return new Vec3d(sideHit.getDirectionVec());
+	private static Vector3d getNormalFromFacing(final Direction sideHit) {
+		return new Vector3d(sideHit.getXOffset(),sideHit.getYOffset(),sideHit.getZOffset());
 	}
 
-	private static Vec3d reflect(final Vec3d dir, final Vec3d normal) {
+	private static Vector3d reflect(final Vector3d dir, final Vector3d normal) {
 		final double dot2 = dir.dotProduct(normal) * 2;
 
 		final double x = dir.x - dot2 * normal.x;
 		final double y = dir.y - dot2 * normal.y;
 		final double z = dir.z - dot2 * normal.z;
 
-		return new Vec3d(x, y, z);
+		return new Vector3d(x, y, z);
 	}
 
-	private static Vec3d offsetSoundByName(final double soundX, final double soundY, final double soundZ,
-			final Vec3d playerPos, final String name, final SoundCategory category) {
+	private static Vector3d offsetSoundByName(final double soundX, final double soundY, final double soundZ,
+			final Vector3d playerPos, final String name, final SoundCategory category) {
 		double offsetX = 0.0;
 		double offsetY = 0.0;
 		double offsetZ = 0.0;
@@ -512,7 +512,7 @@ public class SoundPhysics {
 			offsetZ += tempNormZ * offsetTowardsPlayer;
 		}
 
-		return new Vec3d(soundX + offsetX, soundY + offsetY, soundZ + offsetZ);
+		return new Vector3d(soundX + offsetX, soundY + offsetY, soundZ + offsetZ);
 	}
 
 	/*private static float getPlayerEyeHeight() throws IllegalStateException {
@@ -524,7 +524,7 @@ public class SoundPhysics {
 		return mc.player.getEyeHeight();
 	}*/
 
-	private static BlockRayTraceResult rayTraceBlocks(Vec3d start, Vec3d stop, boolean stopOnLiquid) {
+	private static BlockRayTraceResult rayTraceBlocks(Vector3d start, Vector3d stop, boolean stopOnLiquid) {
 		return mc.world.rayTraceBlocks(new RayTraceContext(start, stop, RayTraceContext.BlockMode.COLLIDER,
 										stopOnLiquid ? RayTraceContext.FluidMode.ANY : RayTraceContext.FluidMode.NONE, mc.player));
 	}
@@ -552,15 +552,15 @@ public class SoundPhysics {
 			float directCutoff = 1.0f;
 			final float absorptionCoeff = Config.globalBlockAbsorption * 3.0f;
 
-			//final Vec3d playerPos = new Vec3d(mc.player.getPosX(), mc.player.getPosY() + getPlayerEyeHeight(), mc.player.getPosZ());
-			final Vec3d playerPos = new Vec3d(mc.player.getPosX(), mc.player.getPosY() + mc.player.getEyeHeight(), mc.player.getPosZ());
-			final Vec3d soundPos = offsetSoundByName(posX, posY, posZ, playerPos, name, category);
-			final Vec3d normalToPlayer = playerPos.subtract(soundPos).normalize();
+			//final Vector3d playerPos = new Vector3d(mc.player.getPosX(), mc.player.getPosY() + getPlayerEyeHeight(), mc.player.getPosZ());
+			final Vector3d playerPos = new Vector3d(mc.player.getPosX(), mc.player.getPosY() + mc.player.getEyeHeight(), mc.player.getPosZ());
+			final Vector3d soundPos = offsetSoundByName(posX, posY, posZ, playerPos, name, category);
+			final Vector3d normalToPlayer = playerPos.subtract(soundPos).normalize();
 
 			float airAbsorptionFactor = 1.0f;
 
 			if (Config.snowAirAbsorptionFactor > 1.0f && mc.world.isRaining()) {
-				final Vec3d middlePos = playerPos.add(soundPos).scale(0.5);
+				final Vector3d middlePos = playerPos.add(soundPos).scale(0.5);
 				final BlockPos playerPosBlock = new BlockPos(playerPos);
 				final BlockPos soundPosBlock = new BlockPos(soundPos);
 				final BlockPos middlePosBlock = new BlockPos(middlePos);
@@ -571,7 +571,7 @@ public class SoundPhysics {
 				airAbsorptionFactor = Math.max(Config.snowAirAbsorptionFactor*mc.world.getRainStrength(1.0f)*snowFactor,airAbsorptionFactor);
 			}
 
-			Vec3d rayOrigin = soundPos;
+			Vector3d rayOrigin = soundPos;
 
 			float occlusionAccumulation = 0.0f;
 
@@ -593,9 +593,9 @@ public class SoundPhysics {
 
 				occlusionAccumulation += blockOcclusion;
 
-				Vec3d hitVec = rayHit.getHitVec();
+				Vector3d hitVec = rayHit.getHitVec();
 
-				rayOrigin = new Vec3d(hitVec.x + normalToPlayer.x * 0.1, hitVec.y + normalToPlayer.y * 0.1,
+				rayOrigin = new Vector3d(hitVec.x + normalToPlayer.x * 0.1, hitVec.y + normalToPlayer.y * 0.1,
 						hitVec.z + normalToPlayer.z * 0.1);
 			}
 
@@ -644,12 +644,12 @@ public class SoundPhysics {
 				final float longitude = gAngle * fi;
 				final float latitude = (float) Math.asin(fiN * 2.0f - 1.0f);
 
-				final Vec3d rayDir = new Vec3d(Math.cos(latitude) * Math.cos(longitude),
+				final Vector3d rayDir = new Vector3d(Math.cos(latitude) * Math.cos(longitude),
 						Math.cos(latitude) * Math.sin(longitude), Math.sin(latitude));
 
-				final Vec3d rayStart = new Vec3d(soundPos.x, soundPos.y, soundPos.z);
+				final Vector3d rayStart = new Vector3d(soundPos.x, soundPos.y, soundPos.z);
 
-				final Vec3d rayEnd = new Vec3d(rayStart.x + rayDir.x * maxDistance, rayStart.y + rayDir.y * maxDistance,
+				final Vector3d rayEnd = new Vector3d(rayStart.x + rayDir.x * maxDistance, rayStart.y + rayDir.y * maxDistance,
 						rayStart.z + rayDir.z * maxDistance);
 
 				final BlockRayTraceResult rayHit = rayTraceBlocks(rayStart, rayEnd, true);
@@ -657,9 +657,9 @@ public class SoundPhysics {
 				if (rayHit.getType() != RayTraceResult.Type.MISS) {
 					// Additional bounces
 					BlockPos lastHitBlock = rayHit.getPos();
-					Vec3d lastHitPos = rayHit.getHitVec();
-					Vec3d lastHitNormal = getNormalFromFacing(rayHit.getFace());
-					Vec3d lastRayDir = rayDir;
+					Vector3d lastHitPos = rayHit.getHitVec();
+					Vector3d lastHitNormal = getNormalFromFacing(rayHit.getFace());
+					Vector3d lastRayDir = rayDir;
 
 					final double rayLength = soundPos.distanceTo(lastHitPos);
 
@@ -667,11 +667,11 @@ public class SoundPhysics {
 
 					// Secondary ray bounces
 					for (int j = 0; j < rayBounces; j++) {
-						final Vec3d newRayDir = reflect(lastRayDir, lastHitNormal);
-						// Vec3d newRayDir = lastHitNormal;
-						final Vec3d newRayStart = new Vec3d(lastHitPos.x + lastHitNormal.x * 0.01,
+						final Vector3d newRayDir = reflect(lastRayDir, lastHitNormal);
+						// Vector3d newRayDir = lastHitNormal;
+						final Vector3d newRayStart = new Vector3d(lastHitPos.x + lastHitNormal.x * 0.01,
 								lastHitPos.y + lastHitNormal.y * 0.01, lastHitPos.z + lastHitNormal.z * 0.01);
-						final Vec3d newRayEnd = new Vec3d(newRayStart.x + newRayDir.x * maxDistance,
+						final Vector3d newRayEnd = new Vector3d(newRayStart.x + newRayDir.x * maxDistance,
 								newRayStart.y + newRayDir.y * maxDistance, newRayStart.z + newRayDir.z * maxDistance);
 
 						final BlockRayTraceResult newRayHit = rayTraceBlocks(newRayStart, newRayEnd, true);
@@ -699,7 +699,7 @@ public class SoundPhysics {
 							// share airspace.
 							if (Config.simplerSharedAirspaceSimulation && j == rayBounces - 1
 									|| !Config.simplerSharedAirspaceSimulation) {
-								final Vec3d finalRayStart = new Vec3d(lastHitPos.x + lastHitNormal.x * 0.01,
+								final Vector3d finalRayStart = new Vector3d(lastHitPos.x + lastHitNormal.x * 0.01,
 										lastHitPos.y + lastHitNormal.y * 0.01, lastHitPos.z + lastHitNormal.z * 0.01);
 
 								final BlockRayTraceResult finalRayHit = rayTraceBlocks(finalRayStart, playerPos, true);

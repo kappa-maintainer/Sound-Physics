@@ -1,5 +1,6 @@
 modLoader="javafml"
-loaderVersion="[31,)"
+loaderVersion="[34,)"
+license="GPL 3.0"
 issueTrackerURL="https://github.com/djpadbit/Sound-Physics/issues"
 
 [[mods]] 
@@ -23,6 +24,6 @@ Provides realistic sound attenuation, reverberation, and absorption through bloc
 #[[dependencies.soundphysics]]
 #modId="minecraft"
 #mandatory=true
-#versionRange="[1.15.2]"
+#versionRange="[1.16.3]"
 #ordering="NONE"
 #side="BOTH"

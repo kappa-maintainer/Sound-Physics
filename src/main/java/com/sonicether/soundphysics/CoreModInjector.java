@@ -143,7 +143,7 @@ public class CoreModInjector implements ITransformer<ClassNode> {
 
 			// Target method: sendToAllNearExcept
 			classNode = patchMethodInClass(classNode, "func_148543_a",
-				"(Lnet/minecraft/entity/player/PlayerEntity;DDDDLnet/minecraft/world/dimension/DimensionType;Lnet/minecraft/network/IPacket;)V",
+				"(Lnet/minecraft/entity/player/PlayerEntity;DDDDLnet/minecraft/util/RegistryKey;Lnet/minecraft/network/IPacket;)V",
 				Opcodes.DCMPG, AbstractInsnNode.INSN, null, null, -1, toInject, true, 0, 0, false, 0, -1);
 		} else
 
