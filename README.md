@@ -1,9 +1,9 @@
 # Sound-Physics
-This 1.15.2 port took quite some time to make because of the all changes in minecraft and forge from 1.12.2. I must warn you though, it is pretty hacky.
+This 1.16.3 port is just based off of the 1.15.2 port without major changes so it should be easier to maintain.
 
-Most features should work but there are no config gui and the config has be changed in the file, and i didn't test server support (it probably doesn't work).
+Most features should work but just like the 1.15.2 port, there are no config gui and the config has be changed in the file, and i didn't test server support (it probably doesn't work).
 
-1.15.2 Releases should be alongside the 1.12.2 ones in the releases link below.
+1.16.3 Releases should be alongside the 1.12.2 and 1.15.2 ones in the releases link below.
 
 A Minecraft mod that provides realistic sound attenuation, reverberation, and absorption through blocks.
 
