@@ -75,6 +75,7 @@ public class SoundPhysics {
 	private static final Pattern betweenlandsPattern = Pattern.compile("thebetweenlands:sounds\\/rift_.*\\.ogg");
 	private static final Pattern travelPattern = Pattern.compile(".*portal\\/travel*.*");
 	private static final Pattern elytraPattern = Pattern.compile(".*elytra\\/elytra_loop*.*");
+	private static final Pattern ambientUnderwaterPattern = Pattern.compile(".*ambient\\/underwater\\/additions\\/*.*");
 
 	public SoundPhysics() {
 		log("Mod Constructor");
@@ -342,7 +343,7 @@ public class SoundPhysics {
 		String filename = resource.getPath();			// This should never happen anyways because music and records are streamed
 		if (mc == null || mc.player == null || mc.world == null /*|| lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC*/ ||
 			uiPattern.matcher(filename).matches() || clickPattern.matcher(filename).matches() || betweenlandsPattern.matcher(filename).matches() ||
-			travelPattern.matcher(filename).matches() || elytraPattern.matcher(filename).matches()) {
+			travelPattern.matcher(filename).matches() || elytraPattern.matcher(filename).matches() || ambientUnderwaterPattern.matcher(filename).matches()) {
 			if (Config.autoSteroDownmixLogging) log("Not converting sound '"+filename+"'("+buff.audioFormat.toString()+")");
 			return buff;
 		}
