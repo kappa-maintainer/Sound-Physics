@@ -95,6 +95,7 @@ public class Config {
 		noteBlockEnable = CONFIG.noteBlockEnable.get();
 		maxDistance = CONFIG.maxDistance.get().floatValue();
 		volumeMulOnlyAffected = CONFIG.volumeMulOnlyAffected.get();
+		globalEchoMultiplier = CONFIG.globalEchoMultiplier.get().floatValue();
 		skipRainOcclusionTracing = CONFIG.skipRainOcclusionTracing.get();
 		environmentEvaluationRays = CONFIG.environmentEvaluationRays.get();
 		simplerSharedAirspaceSimulation = CONFIG.simplerSharedAirspaceSimulation.get();
@@ -135,6 +136,7 @@ public class Config {
 		public static BooleanValue noteBlockEnable;
 		public static DoubleValue maxDistance;
 		public static BooleanValue volumeMulOnlyAffected;
+		public static DoubleValue globalEchoMultiplier;
 	
 		public static BooleanValue skipRainOcclusionTracing;
 		public static IntValue environmentEvaluationRays;
@@ -205,6 +207,9 @@ public class Config {
 			volumeMulOnlyAffected = builder
 					.comment("If true, the global volume multiplier will only be applied to affected sounds (so not to the ui sounds for example).")
 					.define("Volume Multiplier Only On Affected", true);
+			globalEchoMultiplier = builder
+					.comment("The global volume multiplier of the echos, put to 0 to disable echos all together")
+					.defineInRange("Global Echo Multiplier", 1.0, 0.0, 2.0);
 			builder.pop();
 
 			builder.push(categoryPerformance);
