@@ -316,7 +316,7 @@ public class SoundPhysics {
 	public static void onPlaySound(final ISound snd, final SoundSource sndsrc) {
 		if (snd.isGlobal() || snd instanceof ElytraSound) return;
 		final String name = getSoundName(snd);
-		onPlaySound((float)snd.getX(), (float)snd.getY(), (float)snd.getZ(), sndsrc.field_216441_b, getSoundCategory(snd, name), name, snd.getAttenuationType());
+		onPlaySound((float)snd.getX(), (float)snd.getY(), (float)snd.getZ(), sndsrc.id, getSoundCategory(snd, name), name, snd.getAttenuationType());
 	}	
 
 	/**
@@ -354,7 +354,7 @@ public class SoundPhysics {
 												1, orignalformat.getFrameSize(), orignalformat.getFrameRate(), bigendian);
 		if (Config.autoSteroDownmixLogging) log("Converting sound '"+filename+"'("+orignalformat.toString()+") to mono ("+monoformat.toString()+")");
 
-		ByteBuffer src = buff.field_216475_a;
+		ByteBuffer src = buff.inputBuffer;
 		src.order(bigendian ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
 		src.rewind();
 		int size = src.remaining();
@@ -427,23 +427,35 @@ public class SoundPhysics {
 
 		float reflectivity = 0.5f;
 
-		if (soundType == SoundType.STONE) {
+		// Since 1.16, the sound types are a mess; this is not great, mojang please stop adding sound types
+		if (soundType == SoundType.STONE || soundType == SoundType.BASALT ||
+			soundType == SoundType.NETHERRACK || soundType == SoundType.NETHER_BRICK ||
+			soundType == SoundType.NETHER_ORE || soundType == SoundType.BONE ||
+			soundType == SoundType.NETHERITE || soundType == SoundType.ANCIENT_DEBRIS ||
+			soundType == SoundType.LODESTONE || soundType == SoundType.NETHER_GOLD ||
+			soundType == SoundType.GILDED_BLACKSTONE || soundType == SoundType.SHROOMLIGHT) {
 			reflectivity = Config.stoneReflectivity;
-		} else if (soundType == SoundType.WOOD || soundType == SoundType.SCAFFOLDING) {
+		} else if (soundType == SoundType.WOOD || soundType == SoundType.SCAFFOLDING ||
+				   soundType == SoundType.HYPHAE) {
 			reflectivity = Config.woodReflectivity;
-		} else if (soundType == SoundType.GROUND) {
+		} else if (soundType == SoundType.GROUND || soundType == SoundType.NYLIUM) {
 			reflectivity = Config.groundReflectivity;
 		} else if (soundType == SoundType.PLANT || soundType == SoundType.WET_GRASS || soundType == SoundType.CORAL ||
 				   soundType == SoundType.BAMBOO || soundType == SoundType.BAMBOO_SAPLING || soundType == SoundType.CROP ||
-				   soundType == SoundType.STEM || soundType == SoundType.NETHER_WART || soundType == SoundType.SWEET_BERRY_BUSH) {
+				   soundType == SoundType.STEM || soundType == SoundType.NETHER_WART || soundType == SoundType.SWEET_BERRY_BUSH ||
+				   soundType == SoundType.LILY_PADS || soundType == SoundType.VINE || soundType == SoundType.NETHER_VINE ||
+				   soundType == SoundType.NETHER_VINE_LOWER_PITCH || soundType == SoundType.NETHER_SPROUT || soundType == SoundType.WART ||
+				   soundType == SoundType.FUNGUS || soundType == SoundType.ROOT) {
 			reflectivity = Config.plantReflectivity;
-		} else if (soundType == SoundType.METAL || soundType == SoundType.LANTERN) {
+		} else if (soundType == SoundType.METAL || soundType == SoundType.LANTERN ||
+				   soundType == SoundType.CHAIN) {
 			reflectivity = Config.metalReflectivity;
 		} else if (soundType == SoundType.GLASS) {
 			reflectivity = Config.glassReflectivity;
 		} else if (soundType == SoundType.CLOTH) {
 			reflectivity = Config.clothReflectivity;
-		} else if (soundType == SoundType.SAND) {
+		} else if (soundType == SoundType.SAND || soundType == SoundType.SOUL_SAND ||
+				   soundType == SoundType.SOUL_SOIL) {
 			reflectivity = Config.sandReflectivity;
 		} else if (soundType == SoundType.SNOW) {
 			reflectivity = Config.snowReflectivity;
@@ -451,7 +463,7 @@ public class SoundPhysics {
 			reflectivity = Config.woodReflectivity;
 		} else if (soundType == SoundType.ANVIL) {
 			reflectivity = Config.metalReflectivity;
-		} else if (soundType == SoundType.SLIME || soundType == SoundType.field_226947_m_) { // HONEY_BLOCK
+		} else if (soundType == SoundType.SLIME || soundType == SoundType.HONEY) {
 			reflectivity = Config.slimeReflectivity;
 		}
 
