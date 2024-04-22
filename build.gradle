@@ -90,15 +90,15 @@ dependencies {
 	annotationProcessor 'com.google.guava:guava:32.1.2-jre'
 	annotationProcessor 'com.google.code.gson:gson:2.8.9'
 
-	annotationProcessor ("zone.rong:mixinbooter:8.10-kappa") {
+	annotationProcessor ("zone.rong:mixinbooter:9.0") {
 		transitive = false
 	}
 
-	implementation ("zone.rong:mixinbooter:8.10-kappa") {
+	implementation ("zone.rong:mixinbooter:9.0") {
 		transitive = false
 	}
 	
-	runtimeOnly ("zone.rong:mixinbooter:8.10-kappa") {
+	runtimeOnly ("zone.rong:mixinbooter:9.0") {
 		transitive = false
 	}
 
