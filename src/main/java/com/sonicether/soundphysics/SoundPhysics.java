@@ -488,8 +488,10 @@ public class SoundPhysics {
 	private static float getPlayerEyeHeight() throws IllegalStateException {
 		ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mc.player.getDataManager().lock;
 		if (lock.isWriteLocked()) {
-			logError("Deadlock detected, avoiding it by throwing exception");
-			throw new IllegalStateException("Player's Data Mananger is write locked");
+			logger.trace("Deadlock detected, using default eye height");
+			return mc.player.getDefaultEyeHeight();
+			//logError("Deadlock detected, avoiding it by throwing exception");
+			//throw new IllegalStateException("Player's Data Mananger is write locked");
 		}
 		return mc.player.getEyeHeight();
 	}
