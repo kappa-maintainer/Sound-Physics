@@ -1,7 +1,7 @@
 # Sound-Physics
 A Minecraft mod that provides realistic sound attenuation, reverberation, and absorption through blocks.
 
-Downloads are in the [releases tab](https://github.com/djpadbit/Sound-Physics/releases)
+Downloads are on the [CurseForge](https://www.curseforge.com/minecraft/mc-mods/sound-physics-remixin)
 
 This is a fork of a fork! I forked it from daipenger who forked it from sonicether, daipenger ported it to 1.12.2 and cleaned up the codebase, i just added some stuff.
 

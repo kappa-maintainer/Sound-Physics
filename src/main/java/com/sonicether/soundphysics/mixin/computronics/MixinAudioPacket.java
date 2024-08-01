@@ -15,6 +15,6 @@ import pl.asie.computronics.api.audio.IAudioReceiver;
 public class MixinAudioPacket {
     @Inject(method = "canHearReceiver", at = @At(value = "INVOKE", target = "Lpl/asie/computronics/api/audio/IAudioReceiver;getSoundPos()Lnet/minecraft/util/math/Vec3d;"))
     private void injectDistance(EntityPlayerMP playerMP, IAudioReceiver receiver, CallbackInfoReturnable<Boolean> cir, @Local LocalIntRef mdsq) {
-        mdsq.set(mdsq.get() * (int) (SoundPhysics.soundDistanceAllowance * SoundPhysics.soundDistanceAllowance));
+        mdsq.set(mdsq.get() * (int) (SoundPhysics.soundDistanceAllowance));
     }
 }
