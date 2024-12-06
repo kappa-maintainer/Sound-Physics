@@ -31,15 +31,16 @@ import javax.sound.sampled.AudioFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
+import java.util.Arrays;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 
 @Mod(modid = SoundPhysics.modid, clientSideOnly = true, acceptedMinecraftVersions = SoundPhysics.mcVersion,
-	 version = SoundPhysics.version, guiFactory = "com.sonicether.soundphysics.SPGuiFactory")
+	 version = Tags.VERSION, guiFactory = "com.sonicether.soundphysics.SPGuiFactory")
 public class SoundPhysics {
 
 	public static final String modid = "soundphysics";
-	public static final String version = "1.1.5";
+	public static final String version = "1.1.6";
 	public static final String mcVersion = "1.12.2";
 
 	public static final Logger logger = LogManager.getLogger(modid);
@@ -508,6 +509,8 @@ public class SoundPhysics {
 				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 				return;
 			}
+			if (name.equals("minecraft:block.dispenser.fail|random/click"))
+				Arrays.stream(Thread.currentThread().getStackTrace()).forEach(logger::info);
 
 			final boolean isRain = rainPattern.matcher(name).matches();
 
