@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
 public class SoundPhysics {
 
 	public static final String modid = "soundphysics";
-	public static final String version = "1.1.4";
+	public static final String version = "1.1.5";
 	public static final String mcVersion = "1.12.2";
 
 	public static final Logger logger = LogManager.getLogger(modid);
@@ -54,6 +54,7 @@ public class SoundPhysics {
 	private static final Pattern noteBlockPattern = Pattern.compile(".*block.note.*");
 	private static final Pattern betweenlandsPattern = Pattern.compile("thebetweenlands:sounds\\/rift_.*\\.ogg");
 	private static final Pattern travelPattern = Pattern.compile(".*portal\\/travel*.*");
+	private static final Pattern dsroundPattern = Pattern.compile("^dsurround.*");
 
 	@Mod.EventHandler
 	public void preInit(final FMLPreInitializationEvent event) {
@@ -325,8 +326,8 @@ public class SoundPhysics {
 	public static SoundBuffer onLoadSound(SoundBuffer buff, String filename) {
 		if (buff == null || buff.audioFormat.getChannels() == 1 || !Config.autoSteroDownmix) return buff;
 		if (mc == null || mc.player == null || mc.world == null || lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC ||
-			uiPattern.matcher(filename).matches() || clickPattern.matcher(filename).matches() || betweenlandsPattern.matcher(filename).matches() ||
-			travelPattern.matcher(filename).matches()) {
+				uiPattern.matcher(filename).matches() || clickPattern.matcher(filename).matches() || betweenlandsPattern.matcher(filename).matches() ||
+				travelPattern.matcher(filename).matches()) {
 			if (Config.autoSteroDownmixLogging) log("Not converting sound '"+filename+"'("+buff.audioFormat.toString()+")");
 			return buff;
 		}
@@ -334,7 +335,7 @@ public class SoundPhysics {
 		int bits = orignalformat.getSampleSizeInBits();
 		boolean bigendian = orignalformat.isBigEndian();
 		AudioFormat monoformat = new AudioFormat(orignalformat.getEncoding(), orignalformat.getSampleRate(), bits,
-												1, orignalformat.getFrameSize(), orignalformat.getFrameRate(), bigendian);
+				1, orignalformat.getFrameSize(), orignalformat.getFrameRate(), bigendian);
 		if (Config.autoSteroDownmixLogging) log("Converting sound '"+filename+"'("+orignalformat.toString()+") to mono ("+monoformat.toString()+")");
 
 		ByteBuffer bb = ByteBuffer.wrap(buff.audioData,0,buff.audioData.length);
@@ -350,7 +351,6 @@ public class SoundPhysics {
 		}
 		buff.audioFormat = monoformat;
 		buff.trimData(buff.audioData.length/2);
-		buff.audioData = bb.array();
 		return buff;
 	}
 
