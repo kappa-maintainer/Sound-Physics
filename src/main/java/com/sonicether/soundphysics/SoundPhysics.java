@@ -509,8 +509,6 @@ public class SoundPhysics {
 				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 				return;
 			}
-			if (name.equals("minecraft:block.dispenser.fail|random/click"))
-				Arrays.stream(Thread.currentThread().getStackTrace()).forEach(logger::info);
 
 			final boolean isRain = rainPattern.matcher(name).matches();
 
@@ -548,6 +546,7 @@ public class SoundPhysics {
 				final RayTraceResult rayHit = mc.world.rayTraceBlocks(rayOrigin, playerPos, true);
 
 				if (rayHit == null) {
+					occlusionAccumulation += (float) (0.15F * rayOrigin.distanceTo(playerPos));
 					break;
 				}
 
