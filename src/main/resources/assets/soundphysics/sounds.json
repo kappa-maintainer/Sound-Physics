@@ -1,0 +1,6 @@
+{
+  "gui_clicks": {
+    "category": "master",
+    "sounds": [ "soundphysics:click" ]
+  }
+}

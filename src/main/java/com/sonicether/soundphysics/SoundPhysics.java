@@ -17,9 +17,11 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
+import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,12 +42,14 @@ import java.util.regex.Pattern;
 public class SoundPhysics {
 
 	public static final String modid = "soundphysics";
-	public static final String version = "1.1.6";
+	public static final String version = Tags.VERSION;
 	public static final String mcVersion = "1.12.2";
 
 	public static final Logger logger = LogManager.getLogger(modid);
 
 	public static boolean onServer = false;
+
+	public static SoundEvent CLICK = new SoundEvent(new ResourceLocation(modid, "gui_clicks"));
 
 	private static final Pattern rainPattern = Pattern.compile(".*rain.*");
 	private static final Pattern stepPattern = Pattern.compile(".*step.*");
@@ -55,7 +59,8 @@ public class SoundPhysics {
 	private static final Pattern noteBlockPattern = Pattern.compile(".*block.note.*");
 	private static final Pattern betweenlandsPattern = Pattern.compile("thebetweenlands:sounds\\/rift_.*\\.ogg");
 	private static final Pattern travelPattern = Pattern.compile(".*portal\\/travel*.*");
-	private static final Pattern dsroundPattern = Pattern.compile("^dsurround.*");
+	private static final Pattern sfPattern = Pattern.compile("^soundphysics:*");
+	private static final Pattern esPattern = Pattern.compile("^extrasounds:*");
 
 	@Mod.EventHandler
 	public void preInit(final FMLPreInitializationEvent event) {
@@ -327,7 +332,7 @@ public class SoundPhysics {
 	public static SoundBuffer onLoadSound(SoundBuffer buff, String filename) {
 		if (buff == null || buff.audioFormat.getChannels() == 1 || !Config.autoSteroDownmix) return buff;
 		if (mc == null || mc.player == null || mc.world == null || lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC ||
-				uiPattern.matcher(filename).matches() || clickPattern.matcher(filename).matches() || betweenlandsPattern.matcher(filename).matches() ||
+				uiPattern.matcher(filename).matches() || betweenlandsPattern.matcher(filename).matches() || sfPattern.matcher(filename).matches() || sfPattern.matcher(filename).matches() ||
 				travelPattern.matcher(filename).matches()) {
 			if (Config.autoSteroDownmixLogging) log("Not converting sound '"+filename+"'("+buff.audioFormat.toString()+")");
 			return buff;
@@ -337,7 +342,7 @@ public class SoundPhysics {
 		boolean bigendian = orignalformat.isBigEndian();
 		AudioFormat monoformat = new AudioFormat(orignalformat.getEncoding(), orignalformat.getSampleRate(), bits,
 				1, orignalformat.getFrameSize(), orignalformat.getFrameRate(), bigendian);
-		if (Config.autoSteroDownmixLogging) log("Converting sound '"+filename+"'("+orignalformat.toString()+") to mono ("+monoformat.toString()+")");
+		if (Config.autoSteroDownmixLogging) log("Converting sound '"+filename+"'("+ orignalformat +") to mono ("+ monoformat +")");
 
 		ByteBuffer bb = ByteBuffer.wrap(buff.audioData,0,buff.audioData.length);
 		bb.order(bigendian ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
@@ -862,6 +867,11 @@ public class SoundPhysics {
 
 	public static void logError(final String errorMessage) {
 		logger.error(errorMessage);
+	}
+
+	@SubscribeEvent
+	public void registerSound(RegistryEvent.Register<SoundEvent> event) {
+		event.getRegistry().register(CLICK);
 	}
 
 	protected static boolean checkErrorLog(final String errorMessage) {

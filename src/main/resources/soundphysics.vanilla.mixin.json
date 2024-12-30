@@ -12,7 +12,8 @@
     "MixinSoundManager",
     "MixinSoundSystem",
     "MixinSoundSystemStarterThread",
-    "MixinSourceLWJGLOpenAL"
+    "MixinSourceLWJGLOpenAL",
+    "MixinSoundEvents"
   ],
   "minVersion": "0.8"
 }
