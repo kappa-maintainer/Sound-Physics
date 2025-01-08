@@ -33,7 +33,6 @@ import javax.sound.sampled.AudioFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
-import java.util.Arrays;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 
@@ -54,13 +53,14 @@ public class SoundPhysics {
 	private static final Pattern rainPattern = Pattern.compile(".*rain.*");
 	private static final Pattern stepPattern = Pattern.compile(".*step.*");
 	private static final Pattern blockPattern = Pattern.compile(".*block.*");
-	private static final Pattern uiPattern = Pattern.compile(".*\\/ui\\/.*");
+	private static final Pattern uiPattern = Pattern.compile(".*/ui/.*");
 	private static final Pattern clickPattern = Pattern.compile(".*random.click.*");
 	private static final Pattern noteBlockPattern = Pattern.compile(".*block.note.*");
-	private static final Pattern betweenlandsPattern = Pattern.compile("thebetweenlands:sounds\\/rift_.*\\.ogg");
-	private static final Pattern travelPattern = Pattern.compile(".*portal\\/travel*.*");
-	private static final Pattern sfPattern = Pattern.compile("^soundphysics:*");
-	private static final Pattern esPattern = Pattern.compile("^extrasounds:*");
+	private static final Pattern betweenlandsPattern = Pattern.compile("thebetweenlands:sounds/rift_.*\\.ogg");
+	private static final Pattern travelPattern = Pattern.compile(".*portal/travel*.*");
+	private static final Pattern sfPattern = Pattern.compile("^soundphysics:.*");
+	private static final Pattern esPattern = Pattern.compile("^extrasounds:.*");
+	private static final Pattern bqpPattern = Pattern.compile("^better_quest_popup:.*");
 
 	@Mod.EventHandler
 	public void preInit(final FMLPreInitializationEvent event) {
@@ -332,8 +332,8 @@ public class SoundPhysics {
 	public static SoundBuffer onLoadSound(SoundBuffer buff, String filename) {
 		if (buff == null || buff.audioFormat.getChannels() == 1 || !Config.autoSteroDownmix) return buff;
 		if (mc == null || mc.player == null || mc.world == null || lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC ||
-				uiPattern.matcher(filename).matches() || betweenlandsPattern.matcher(filename).matches() || sfPattern.matcher(filename).matches() || sfPattern.matcher(filename).matches() ||
-				travelPattern.matcher(filename).matches()) {
+				uiPattern.matcher(filename).matches() || betweenlandsPattern.matcher(filename).matches() || sfPattern.matcher(filename).matches() || esPattern.matcher(filename).matches() ||
+				travelPattern.matcher(filename).matches() || bqpPattern.matcher(filename).matches()) {
 			if (Config.autoSteroDownmixLogging) log("Not converting sound '"+filename+"'("+buff.audioFormat.toString()+")");
 			return buff;
 		}
