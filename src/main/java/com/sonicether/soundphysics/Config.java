@@ -60,6 +60,7 @@ public class Config {
 	public static boolean glibyVCPatching;
 	public static boolean glibyVCSrcPatching;
 	public static boolean autoSteroDownmix;
+	public static String[] downMixBlacklist;
 
 	// misc
 	public static boolean autoSteroDownmixLogging;
@@ -94,6 +95,15 @@ public class Config {
 		if (eventArgs.getModID().equals(SoundPhysics.modid)) {
 			syncConfig();
 		}
+	}
+
+	static String getBlacklist() {
+		StringBuilder blacklist = new StringBuilder();
+		for (String entry : downMixBlacklist) {
+			blacklist.append(entry).append("|");
+		}
+		blacklist.deleteCharAt(blacklist.length() - 1);
+		return blacklist.toString();
 	}
 
 	public List<IConfigElement> getConfigElements() {
@@ -189,6 +199,19 @@ public class Config {
 				"REQUIRES RESTART. If true, patches Gliby's VC sources to work with Sound Physics.");
 		autoSteroDownmix = this.forgeConfig.getBoolean("Auto Stereo Downmix", categoryCompatibility, true,
 				"REQUIRES RESTART. If true, Automatically downmix stereo sounds that are loaded to mono");
+		downMixBlacklist = this.forgeConfig.getStringList("Downmix Blacklist", categoryCompatibility, new String[]{
+						".*rain.*",
+						".*step.*",
+						".*block.*",
+						".*/ui/.*",
+						".*block.note.*",
+						"thebetweenlands:sounds/rift_.*\\.ogg",
+						".*portal/travel*.*",
+						"^soundphysics:.*",
+						"^extrasounds:.*",
+						"^better_quest_popup:.*"
+				},
+				"REQUIRES RESTART. Regex pattern of downmix blacklist, they will be chained with |");
 
 		// misc
 		autoSteroDownmixLogging = this.forgeConfig.getBoolean("Stereo downmix Logging", categoryMisc, false,
