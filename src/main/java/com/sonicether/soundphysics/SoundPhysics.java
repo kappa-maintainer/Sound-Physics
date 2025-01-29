@@ -4,10 +4,14 @@ import net.minecraft.block.Block;
 import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.properties.PropertyDirection;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
 import net.minecraft.client.audio.MovingSound;
+import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.item.EntityBoat;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ResourceLocation;
@@ -488,7 +492,6 @@ public class SoundPhysics {
 	private static float getPlayerEyeHeight() throws IllegalStateException {
 		ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mc.player.getDataManager().lock;
 		if (lock.isWriteLocked()) {
-			logger.trace("Deadlock detected, using default eye height");
 			return mc.player.getDefaultEyeHeight();
 			//logError("Deadlock detected, avoiding it by throwing exception");
 			//throw new IllegalStateException("Player's Data Mananger is write locked");
@@ -577,7 +580,7 @@ public class SoundPhysics {
 			float sendCutoff2 = 1.0f;
 			float sendCutoff3 = 1.0f;
 
-			if (mc.player.isInsideOfMaterial(Material.WATER)) {
+			if (isInsideOfMaterial(Material.WATER)) {
 				directCutoff *= 1.0f - Config.underwaterFilter;
 			}
 
@@ -899,6 +902,33 @@ public class SoundPhysics {
 
 		logError(errorMessage + " OpenAL error " + errorName);
 		return true;
+	}
+
+	private static boolean isInsideOfMaterial(Material materialIn)
+	{
+		EntityPlayerSP player = mc.player;
+		if (player.getRidingEntity() instanceof EntityBoat)
+		{
+			return false;
+		}
+		else
+		{
+			double d0 = player.posY + (double)getPlayerEyeHeight();
+			BlockPos blockpos = new BlockPos(player.posX, d0, player.posZ);
+			IBlockState iblockstate = player.world.getBlockState(blockpos);
+
+			Boolean result = iblockstate.getBlock().isEntityInsideMaterial(player.world, blockpos, iblockstate, player, d0, materialIn, true);
+			if (result != null) return result;
+
+			if (iblockstate.getMaterial() == materialIn)
+			{
+				return net.minecraftforge.common.ForgeHooks.isInsideOfMaterial(materialIn, player, blockpos);
+			}
+			else
+			{
+				return false;
+			}
+		}
 	}
 
 }
