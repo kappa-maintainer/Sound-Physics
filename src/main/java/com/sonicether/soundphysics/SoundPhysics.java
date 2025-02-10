@@ -39,6 +39,8 @@ import java.nio.IntBuffer;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 
+import static com.sonicether.soundphysics.ClientHelper.isInsideOfMaterial;
+
 @Mod(modid = SoundPhysics.modid, clientSideOnly = true, acceptedMinecraftVersions = SoundPhysics.mcVersion,
 	 version = Tags.VERSION, guiFactory = "com.sonicether.soundphysics.SPGuiFactory")
 public class SoundPhysics {
@@ -488,7 +490,7 @@ public class SoundPhysics {
 		return new Vec3d(soundX + offsetX, soundY + offsetY, soundZ + offsetZ);
 	}
 
-	private static float getPlayerEyeHeight() throws IllegalStateException {
+	public static float getPlayerEyeHeight() throws IllegalStateException {
 		ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mc.player.getDataManager().lock;
 		if (lock.isWriteLocked()) {
 			return mc.player.getDefaultEyeHeight();
@@ -901,33 +903,6 @@ public class SoundPhysics {
 
 		logError(errorMessage + " OpenAL error " + errorName);
 		return true;
-	}
-
-	private static boolean isInsideOfMaterial(Material materialIn)
-	{
-		EntityPlayer player = mc.player;
-		if (player.getRidingEntity() instanceof EntityBoat)
-		{
-			return false;
-		}
-		else
-		{
-			double d0 = player.posY + (double)getPlayerEyeHeight();
-			BlockPos blockpos = new BlockPos(player.posX, d0, player.posZ);
-			IBlockState iblockstate = player.world.getBlockState(blockpos);
-
-			Boolean result = iblockstate.getBlock().isEntityInsideMaterial(player.world, blockpos, iblockstate, player, d0, materialIn, true);
-			if (result != null) return result;
-
-			if (iblockstate.getMaterial() == materialIn)
-			{
-				return net.minecraftforge.common.ForgeHooks.isInsideOfMaterial(materialIn, player, blockpos);
-			}
-			else
-			{
-				return false;
-			}
-		}
 	}
 
 }
