@@ -8,7 +8,6 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
 import net.minecraft.client.audio.MovingSound;
-import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.item.EntityBoat;
 import net.minecraft.entity.player.EntityPlayer;
@@ -906,7 +905,7 @@ public class SoundPhysics {
 
 	private static boolean isInsideOfMaterial(Material materialIn)
 	{
-		EntityPlayerSP player = mc.player;
+		EntityPlayer player = mc.player;
 		if (player.getRidingEntity() instanceof EntityBoat)
 		{
 			return false;
