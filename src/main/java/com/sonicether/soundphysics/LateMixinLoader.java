@@ -19,7 +19,8 @@ public class LateMixinLoader implements ILateMixinLoader {
                 "soundphysics.umc.mixin.json",
                 "soundphysics.midnight.mixin.json",
                 "soundphysics.ic2c.mixin.json",
-                "soundphysics.ic2exp.mixin.json"
+                "soundphysics.ic2exp.mixin.json",
+                "soundphysics.enhancedvisuals.mixin.json"
         );
     }
 
@@ -45,6 +46,8 @@ public class LateMixinLoader implements ILateMixinLoader {
                 return Loader.isModLoaded("universalmodcore") && Config.irPatching;
             case "soundphysics.midnight.mixin.json":
                 return Loader.isModLoaded("midnight") && Config.midnightPatching;
+            case "soundphysics.enhancedvisuals.mixin.json":
+                return Loader.isModLoaded("enhancedvisuals") && Config.evPatching;
             case "soundphysics.ic2c.mixin.json":
                 return Loader.isModLoaded("ic2") && Config.ic2Patching && isIC2Classic();
             case "soundphysics.ic2exp.mixin.json":

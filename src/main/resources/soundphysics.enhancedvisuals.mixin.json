@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "com.sonicether.soundphysics.mixin.enhancedvisuals",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "soundphysics.mixins.refmap.json",
+  "mixins": [
+  ],
+  "client": [
+    "MixinVisualHandler"
+  ],
+  "minVersion": "0.8"
+}

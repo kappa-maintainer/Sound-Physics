@@ -54,6 +54,7 @@ public class Config {
 	// compatibility
 	public static boolean computronicsPatching;
 	public static boolean irPatching;
+	public static boolean evPatching;
 	public static boolean midnightPatching;
 	public static boolean midnightPatchingFix;
 	public static boolean ic2Patching;
@@ -187,6 +188,8 @@ public class Config {
 				"REQUIRES RESTART. If true, patches the Computronics sound sources so it works with Sound Physics.");
 		irPatching = this.forgeConfig.getBoolean("Patch Immersive Railroading", categoryCompatibility, true,
 				"REQUIRES RESTART. If true, patches the Immersive Railroading sound sources so it works with Sound Physics.");
+		evPatching = this.forgeConfig.getBoolean("Patch EnhancedVisuals", categoryCompatibility, true,
+				"REQUIRES RESTART. If true, patches the EnhancedVisuals sound sources so it works with Sound Physics.");
 		midnightPatching = this.forgeConfig.getBoolean("Patch The Midnight", categoryCompatibility, true,
 				"REQUIRES RESTART. If true, patches The Midnight to disable redundant functionality that causes some problems.");
 		midnightPatchingFix = this.forgeConfig.getBoolean("Readd The Midnight Reverb", categoryCompatibility, true,
@@ -209,7 +212,8 @@ public class Config {
 						".*portal/travel*.*",
 						"^soundphysics:.*",
 						"^extrasounds:.*",
-						"^better_quest_popup:.*"
+						"^better_quest_popup:.*",
+						"^enhancedvisuals:.*"
 				},
 				"REQUIRES RESTART. Regex pattern of downmix blacklist, they will be chained with |");
 
