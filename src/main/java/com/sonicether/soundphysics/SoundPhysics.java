@@ -116,6 +116,19 @@ public class SoundPhysics {
 		}
 	}
 
+	/**
+	 * CALLED BY SVC INTEGRATION
+	 */
+	public static void init() {
+		mc = Minecraft.getMinecraft();
+		try {
+			setupEFX();
+		} catch (Throwable e) {
+			logError("Failed to init EFX");
+			logError(e.toString());
+		}
+	}
+
 	public static void applyConfigChanges() {
 		globalRolloffFactor = Config.rolloffFactor;
 		globalReverbMultiplier = 0.7f * Config.globalReverbGain;
@@ -773,6 +786,14 @@ public class SoundPhysics {
 			logger.error("Error while evaluation environment:", e);
 			setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 		}
+	}
+
+	public static void setDefaultEnvironment(int sourceID) {
+		setDefaultEnvironment(sourceID, false);
+	}
+
+	public static void setDefaultEnvironment(int sourceID, boolean auxOnly) {
+		setEnvironment(sourceID, 0F, 0F, 0F, 0F, 1F, 1F, 1F, 1F, 1F,   auxOnly ? 0F : 1F, 1F);
 	}
 
 	private static void setEnvironment(final int sourceID, final float sendGain0, final float sendGain1,

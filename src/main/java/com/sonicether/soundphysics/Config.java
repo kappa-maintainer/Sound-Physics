@@ -60,6 +60,8 @@ public class Config {
 	public static boolean ic2Patching;
 	public static boolean glibyVCPatching;
 	public static boolean glibyVCSrcPatching;
+	public static boolean hearSelf;
+	public static boolean simpleVoiceChatIntegration;
 	public static boolean autoSteroDownmix;
 	public static String[] downMixBlacklist;
 
@@ -200,6 +202,10 @@ public class Config {
 				"REQUIRES RESTART. If true, patches Gliby's VC's copied soundsystem classes to restore Sound Physics.");
 		glibyVCSrcPatching = this.forgeConfig.getBoolean("Patch Gliby's VC sources", categoryCompatibility, true,
 				"REQUIRES RESTART. If true, patches Gliby's VC sources to work with Sound Physics.");
+		simpleVoiceChatIntegration = this.forgeConfig.getBoolean("Simple Voice Chat Integration", categoryCompatibility, true,
+				"REQUIRES RESTART. If true, make Sound Physics work with Simple Voice Chat.");
+		hearSelf = this.forgeConfig.getBoolean("Can player hear self in Simple Voice Chat", categoryCompatibility, true,
+				"REQUIRES RESTART.");
 		autoSteroDownmix = this.forgeConfig.getBoolean("Auto Stereo Downmix", categoryCompatibility, true,
 				"REQUIRES RESTART. If true, Automatically downmix stereo sounds that are loaded to mono");
 		downMixBlacklist = this.forgeConfig.getStringList("Downmix Blacklist", categoryCompatibility, new String[]{
