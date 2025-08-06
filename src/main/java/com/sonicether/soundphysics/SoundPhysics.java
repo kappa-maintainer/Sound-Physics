@@ -42,11 +42,11 @@ import java.util.regex.Pattern;
 import static com.sonicether.soundphysics.ClientHelper.isInsideOfMaterial;
 
 @Mod(modid = SoundPhysics.modid, clientSideOnly = true, acceptedMinecraftVersions = SoundPhysics.mcVersion,
-	 version = Tags.VERSION, guiFactory = "com.sonicether.soundphysics.SPGuiFactory")
+	 version = Reference.VERSION, guiFactory = "com.sonicether.soundphysics.SPGuiFactory")
 public class SoundPhysics {
 
 	public static final String modid = "soundphysics";
-	public static final String version = Tags.VERSION;
+	public static final String version = Reference.VERSION;
 	public static final String mcVersion = "1.12.2";
 
 	public static final Logger logger = LogManager.getLogger(modid);

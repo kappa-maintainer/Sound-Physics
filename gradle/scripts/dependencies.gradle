@@ -1,29 +1,23 @@
 apply from: 'gradle/scripts/helpers.gradle'
 
+tasks.register('downloadFile', Download) {
+    src 'https://files.vexatos.com/Computronics/Computronics-1.12.2-1.6.6-deobf.jar'
+    dest new File(project.rootDir, "libs")
+    overwrite false
+}
+
+compileJava.dependsOn(downloadFile)
+
 repositories {
     // Other repositories described by default:
     // CleanroomMC: https://maven.cleanroommc.com
-    exclusiveContent {
-        forRepository {
-            maven {
-                name 'CurseMaven'
-                url 'https://cursemaven.com'
-            }
-        }
-        filter {
-            includeGroup 'curse.maven'
-        }
+    maven {
+        name 'CurseMaven'
+        url 'https://curse.cleanroommc.com'
     }
-    exclusiveContent {
-        forRepository {
-            maven {
-                name 'Modrinth'
-                url 'https://api.modrinth.com/maven'
-            }
-        }
-        filter {
-            includeGroup 'maven.modrinth'
-        }
+    maven {
+        name 'Modrinth'
+        url 'https://api.modrinth.com/maven'
     }
     flatDir {
         dirs 'libs'
@@ -31,29 +25,29 @@ repositories {
     mavenLocal() // Must be last for caching to work
 }
 
-dependencies {
-    // Include StripLatestForgeRequirements by default for the dev env, saves everyone a hassle
 
+dependencies {
+    compileOnly "com.cleanroommc:sponge-mixin:0.20.10+mixin.0.8.7"
+    if (propertyBool('enable_lwjglx')) {
+        compileOnly "com.cleanroommc:lwjglx:1.0.0"
+    }
     compileOnly "curse.maven:glibyvc-296045:3882806" //Gliby's Voice Chat Reloaded
-    compileOnly rfg.deobf("curse.maven:umc-371784:4975229") //Immersive Railroading
+    modCompileOnly ("curse.maven:umc-371784:4975229") //Immersive Railroading
     compileOnly "curse.maven:dynsur-238891:2922489" //Dynamic Surroundings
     //compileOnly "curse.maven:midnight-304881:2727758" //The Midnight
-    compileOnly "mush:themidnight:0.3.5"
-    compileOnly rfg.deobf("curse.maven:ic2exp-242638:3838713") //IC2 EXP
-    compileOnly rfg.deobf("curse.maven:ic2c-242942:4476676") //IC2 Classic
+    //compileOnly "mush:themidnight:0.3.5"
+    modCompileOnly ("curse.maven:ic2exp-242638:3838713") //IC2 EXP
+    modCompileOnly ("curse.maven:ic2c-242942:4476676") //IC2 Classic
     compileOnly "stub:Computronics:1.12.2-1.6.6:deobf" // Computronics
 
-    compileOnly rfg.deobf("curse.maven:enhancedvisuals-255389:3507523")
-    compileOnly rfg.deobf("curse.maven:simple-voice-chat-416089:6697106")
+    modCompileOnly ("curse.maven:enhancedvisuals-255389:3507523")
+    modCompileOnly ("curse.maven:simple-voice-chat-416089:6697106")
+
+    modCompileOnly ("curse.maven:midnight-304881:2727758")
 
     // Example - Dependency descriptor:
     // 'com.google.code.gson:gson:2.8.6' << group: com.google.code.gson, name:gson, version:2.8.6
     // 'group:name:version:classifier' where classifier is optional
-
-    // Example - Deobfuscating dependencies:
-    // rfg.deobf('curse.maven:had-enough-items-557549:4543375')
-    // By wrapping a dependency descriptor in rfg.deobf() method call, the dependency is queued for deobfuscation
-    // When deobfuscating, RFG respects the mapping_channel + mapping_version stated in gradle.properties
 
     // Example - CurseMaven dependencies:
     // 'curse.maven:had-enough-items-557549:4543375' << had-enough-items = project slug, 557549 = project id, 4543375 = file id
@@ -68,7 +62,10 @@ dependencies {
     // runtimeOnly = runtime dependency
     // compileOnly = compile time dependency
     // annotationProcessor = annotation processing dependencies
-    // embed = bundled dependencies (no shadow involved so no relocation)
+    // contain = bundle dependency jars into final artifact, will extract them in mod loading. Please only do this to non-mod dependencies.
+    // shadow = bundle dependencies into shadow output artifact (relocation configurable in shadowJar task)
+    // modImplementation = mod dependency available at both compile time and runtime
+    // modCompileOnly = mod dependency available only at compile time
 
     // Transitive dependencies:
     // (Dependencies that your dependency depends on)

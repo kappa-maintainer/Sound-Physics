@@ -1,8 +1,8 @@
 package com.sonicether.soundphysics.voicechat;
 
 import com.sonicether.soundphysics.Config;
+import com.sonicether.soundphysics.Reference;
 import com.sonicether.soundphysics.SoundPhysics;
-import com.sonicether.soundphysics.Tags;
 import de.maxhenkel.voicechat.api.ForgeVoicechatPlugin;
 import de.maxhenkel.voicechat.api.Position;
 import de.maxhenkel.voicechat.api.VoicechatApi;
@@ -21,10 +21,9 @@ import org.lwjgl.openal.ALC10;
 import org.lwjgl.openal.ALCcontext;
 
 import javax.annotation.Nullable;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -39,12 +38,15 @@ public class SimpleVoiceChatPlugin implements VoicechatPlugin {
     private ClientLocationalAudioChannel locationalAudioChannel;
 
     private static final Constructor<?> cotr;
+    private static final Field alcContext;
 
     static {
         try {
             cotr = ALCcontext.class.getDeclaredConstructor(long.class);
             cotr.setAccessible(true);
-        } catch (NoSuchMethodException e) {
+            alcContext = ALC10.class.getDeclaredField("alcContext");
+            alcContext.setAccessible(true);
+        } catch (NoSuchMethodException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
     }
@@ -55,7 +57,7 @@ public class SimpleVoiceChatPlugin implements VoicechatPlugin {
 
     @Override
     public String getPluginId() {
-        return Tags.MOD_ID;
+        return Reference.MOD_ID;
     }
 
     @Override
@@ -98,7 +100,7 @@ public class SimpleVoiceChatPlugin implements VoicechatPlugin {
     private void onCreateALContext(CreateOpenALContextEvent event){
         ALCcontext oldContext = ALC10.alcGetCurrentContext();
         try {
-            ALC10.alcMakeContextCurrent((ALCcontext) cotr.newInstance(event.getContext()));
+            alcContext.set(null, (ALCcontext) cotr.newInstance(event.getContext()));
         } catch (Throwable t) {
             SoundPhysics.logger.error(t);
         }
@@ -106,7 +108,11 @@ public class SimpleVoiceChatPlugin implements VoicechatPlugin {
         SoundPhysics.logger.info("Initializing sound physics for voice chat audio");
         SoundPhysics.init();
 
-        ALC10.alcMakeContextCurrent(oldContext);
+        try {
+            alcContext.set(null, oldContext);
+        } catch (Throwable t) {
+            SoundPhysics.logger.error(t);
+        }
     }
 
     private void onConnection(ClientVoicechatConnectionEvent event) {
