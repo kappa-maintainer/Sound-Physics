@@ -784,6 +784,7 @@ public class SoundPhysics {
 					sendCutoff3, directCutoff, directGain, airAbsorptionFactor);
 		} catch(Exception e) {
 			logger.error("Error while evaluation environment:", e);
+            logger.error(e.getMessage());
 			setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 		}
 	}

@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import paulscode.sound.SoundSystem;
 
-@Mixin(targets = "net.minecraft.client.audio.SoundManager.SoundSystemStarterThread", remap = false)
+@Mixin(targets = "net.minecraft.client.audio.SoundManager$SoundSystemStarterThread", remap = false)
 public class MixinSoundSystemStarterThread {
     @Inject(method = "<init>(Lnet/minecraft/client/audio/SoundManager;)V", at = @At("TAIL"))
     private void injectInit(SoundManager p_i45117_1_, CallbackInfo ci) {
