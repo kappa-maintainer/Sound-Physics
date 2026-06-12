@@ -13,7 +13,8 @@
     "MixinSoundSystem",
     "MixinSoundSystemStarterThread",
     "MixinSourceLWJGLOpenAL",
-    "MixinSoundEvents"
+    "MixinSoundEvents",
+    "MixinMinecraft"
   ],
   "minVersion": "0.8"
 }
