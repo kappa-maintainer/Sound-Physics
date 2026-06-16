@@ -64,7 +64,9 @@ public class SoundPhysics {
 
 	@Mod.EventHandler
 	public void preInit(final FMLPreInitializationEvent event) {
-		Config.instance.preInit(event);
+        SoundSystemConfig.setNumberNormalChannels(1024);
+        SoundSystemConfig.setNumberStreamingChannels(32);
+        Config.instance.preInit(event);
 	}
 
 	@Mod.EventHandler
