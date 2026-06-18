@@ -65,7 +65,7 @@ public final class OpenALSpeakerRouter {
             ChannelSource cs = sources.computeIfAbsent(channelId, ChannelSource::new);
             cs.play(monoData, volume, position, category, maxDistance);
         } catch (Throwable t) {
-            SoundPhysics.logger.error("OpenALSpeakerRouter play error", t);
+            SoundPhysics.logger.error("OpenALSpeakerRouter play error for channel " + channelId, t);
         }
     }
 
@@ -87,6 +87,10 @@ public final class OpenALSpeakerRouter {
         ready = false;
     }
 
+    public static int getActiveChannelCount() {
+        return sources.size();
+    }
+
     private static final class ChannelSource {
         private final UUID channelId;
         private final int sourceId;
@@ -101,25 +105,23 @@ public final class OpenALSpeakerRouter {
             this.sourceId = AL10.alGenSources();
             AL10.alSourcei(sourceId, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
             AL10.alSourcef(sourceId, AL10.AL_ROLLOFF_FACTOR, 0.0f);
-            AL10.alSourcef(sourceId, AL10.AL_REFERENCE_DISTANCE, 1.0f);
-            AL10.alSourcef(sourceId, AL10.AL_MAX_DISTANCE, 32.0f);
+            AL10.alSourcef(sourceId, AL10.AL_REFERENCE_DISTANCE, 0.0f);
+            AL10.alSourcef(sourceId, AL10.AL_MAX_DISTANCE, Float.MAX_VALUE);
             AL10.alSourcef(sourceId, AL10.AL_GAIN, 1.0f);
             checkAlError("Failed to create OpenAL source for voice channel " + channelId);
         }
 
         void play(short[] monoData, float volume, @Nullable Vec3d position,
                   @Nullable String category, float maxDistance) {
-            AL10.alSourcef(sourceId, AL10.AL_MAX_DISTANCE, Math.max(maxDistance, 1.0f));
-
             if (position != null) {
                 AL10.alSourcei(sourceId, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
                 AL10.alSource3f(sourceId, AL10.AL_POSITION, (float) position.x, (float) position.y, (float) position.z);
                 float distanceVolume = distanceVolume(maxDistance, position);
-                AL10.alSourcef(sourceId, AL10.AL_GAIN, clampGain(volume * distanceVolume));
+                AL10.alSourcef(sourceId, AL10.AL_GAIN, volume * distanceVolume);
             } else {
                 AL10.alSourcei(sourceId, AL10.AL_SOURCE_RELATIVE, AL10.AL_TRUE);
                 AL10.alSource3f(sourceId, AL10.AL_POSITION, 0f, 0f, 0f);
-                AL10.alSourcef(sourceId, AL10.AL_GAIN, clampGain(volume));
+                AL10.alSourcef(sourceId, AL10.AL_GAIN, volume);
             }
 
             unqueueProcessed();
@@ -211,18 +213,13 @@ public final class OpenALSpeakerRouter {
     }
 
     private static float distanceVolume(float maxDistance, Vec3d position) {
-        if (Minecraft.getMinecraft().player == null) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.player == null) {
             return 1.0f;
         }
-        Vec3d listener = Minecraft.getMinecraft().player.getPositionVector();
+        Vec3d listener = mc.player.getPositionVector().add(0D, mc.player.getEyeHeight(), 0D);
         float distance = (float) Math.min(position.distanceTo(listener), maxDistance);
         return 1.0f - distance / Math.max(maxDistance, 1.0f);
-    }
-
-    private static float clampGain(float gain) {
-        if (gain < 0.0f) return 0.0f;
-        if (gain > 1.0f) return 1.0f;
-        return gain;
     }
 
     private static ByteBuffer toByteBuffer(short[] shorts) {

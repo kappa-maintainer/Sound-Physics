@@ -61,14 +61,28 @@ public class SimpleVoiceChatPlugin implements VoicechatPlugin {
         if (!Config.hearSelf) {
             return;
         }
-        Vec3d position = Minecraft.getMinecraft().player.getPositionVector();
+        if (Minecraft.getMinecraft().player == null) {
+            return;
+        }
+        Vec3d position = Minecraft.getMinecraft().player.getPositionVector().add(0D, Minecraft.getMinecraft().player.getEyeHeight(), 0D);
         locationalAudioChannel.setCategory(OWN_VOICE_CATEGORY);
         locationalAudioChannel.setLocation(event.getVoicechat().createPosition(position.x, position.y, position.z));
         locationalAudioChannel.play(event.getRawAudio());
     }
 
     private void onConnection(ClientVoicechatConnectionEvent event) {
-        locationalAudioChannel = event.getVoicechat().createLocationalAudioChannel(OWN_VOICE_ID, event.getVoicechat().createPosition(0D, 0D, 0D));
+        if (!event.isConnected()) {
+            locationalAudioChannel = null;
+            OpenALSpeakerRouter.closeAll();
+            return;
+        }
+        try {
+            locationalAudioChannel = event.getVoicechat().createLocationalAudioChannel(OWN_VOICE_ID, event.getVoicechat().createPosition(0D, 0D, 0D));
+            SoundPhysics.logger.info("Simple Voice Chat connected, own-voice channel ready");
+        } catch (Throwable t) {
+            SoundPhysics.logger.error("Failed to create own-voice locational audio channel", t);
+            locationalAudioChannel = null;
+        }
     }
 
 }

@@ -30,7 +30,7 @@ public class MixinJavaSpeakerBase implements VoiceChatSpeaker {
         soundphysics$channelId = uuid;
     }
 
-    @Inject(method = "play", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "play([SFLnet/minecraft/util/math/Vec3d;Ljava/lang/String;F)V", at = @At("HEAD"), cancellable = true)
     private void soundphysics$onPlay(short[] data, float volume, @Nullable Vec3d position,
                                      @Nullable String category, float maxDistance, CallbackInfo ci) {
         if (!Config.simpleVoiceChatIntegration || !OpenALSpeakerRouter.isReady() || soundphysics$channelId == null) {

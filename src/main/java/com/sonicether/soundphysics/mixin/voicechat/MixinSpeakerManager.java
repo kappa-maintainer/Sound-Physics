@@ -20,7 +20,7 @@ public class MixinSpeakerManager {
     private static void soundphysics$setChannelId(SoundManager soundManager, @Nullable UUID audioChannel,
                                                   CallbackInfoReturnable<Speaker> cir) {
         Speaker speaker = cir.getReturnValue();
-        if (speaker instanceof VoiceChatSpeaker) {
+        if (speaker instanceof VoiceChatSpeaker && audioChannel != null) {
             ((VoiceChatSpeaker) speaker).soundphysics$setChannelId(audioChannel);
         }
     }
