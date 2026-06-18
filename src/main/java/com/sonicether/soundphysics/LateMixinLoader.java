@@ -20,7 +20,8 @@ public class LateMixinLoader implements ILateMixinLoader {
                 "soundphysics.midnight.mixin.json",
                 "soundphysics.ic2c.mixin.json",
                 "soundphysics.ic2exp.mixin.json",
-                "soundphysics.enhancedvisuals.mixin.json"
+                "soundphysics.enhancedvisuals.mixin.json",
+                "soundphysics.voicechat.mixin.json"
         );
     }
 
@@ -52,6 +53,8 @@ public class LateMixinLoader implements ILateMixinLoader {
                 return Loader.isModLoaded("ic2") && Config.ic2Patching && isIC2Classic();
             case "soundphysics.ic2exp.mixin.json":
                 return Loader.isModLoaded("ic2") && Config.ic2Patching && !isIC2Classic();
+            case "soundphysics.voicechat.mixin.json":
+                return Loader.isModLoaded("voicechat") && Config.simpleVoiceChatIntegration;
             default: return ILateMixinLoader.super.shouldMixinConfigQueue(mixinConfig);
         }
     }

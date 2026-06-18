@@ -112,6 +112,7 @@ public class SoundPhysics {
 		sndSystem = snds;
 		try {
 			setupEFX();
+			com.sonicether.soundphysics.voicechat.OpenALSpeakerRouter.markReady();
 		} catch (Throwable e) {
 			logError("Failed to init EFX");
 			logError(e.toString());
@@ -125,6 +126,7 @@ public class SoundPhysics {
 		mc = Minecraft.getMinecraft();
 		try {
 			setupEFX();
+			com.sonicether.soundphysics.voicechat.OpenALSpeakerRouter.markReady();
 		} catch (Throwable e) {
 			logError("Failed to init EFX");
 			logError(e.toString());
@@ -799,7 +801,7 @@ public class SoundPhysics {
 		setEnvironment(sourceID, 0F, 0F, 0F, 0F, 1F, 1F, 1F, 1F, 1F,   auxOnly ? 0F : 1F, 1F);
 	}
 
-	private static void setEnvironment(final int sourceID, final float sendGain0, final float sendGain1,
+	private static synchronized void setEnvironment(final int sourceID, final float sendGain0, final float sendGain1,
 			final float sendGain2, final float sendGain3, final float sendCutoff0, final float sendCutoff1,
 			final float sendCutoff2, final float sendCutoff3, final float directCutoff, final float directGain,
 			final float airAbsorptionFactor) {
