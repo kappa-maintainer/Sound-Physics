@@ -44,7 +44,7 @@ public class MixinAudioSourceClient {
     private void updateVec(EntityPlayer player, CallbackInfo ci, @Local LocalRef<Vec3d> pos) {
         pos.set(SoundPhysics.calculateEntitySoundOffsetVec(pos.get(), player, null));
     }
-
+/*
 
     @Inject(method = "updateVolume", at = @At(value = "INVOKE_ASSIGN", target = "Lic2/core/util/math/MathUtil;substract(Lnet/minecraft/util/math/Vec3d;F)Lnet/minecraft/util/math/Vec3d;"))
     private void setDistanceZero(EntityPlayer player, CallbackInfo ci, @Local(ordinal = 1) LocalDoubleRef distance, @Share("dis") LocalDoubleRef dis) {
@@ -55,5 +55,5 @@ public class MixinAudioSourceClient {
     @Inject(method = "updateVolume", at = @At(value = "JUMP", opcode = Opcodes.GOTO, ordinal = 2))
     private void injectHook(EntityPlayer player, CallbackInfo ci, @Local(ordinal = 0) Vec3d pos, @Local LocalIntRef i, @Share("dis") LocalDoubleRef dis) {
         i.set(SoundPhysics.ic2DistanceCheckHook(i.get(), dis.get(), this.position.getPosition(), pos) - 1);
-    }
+    }*/
 }

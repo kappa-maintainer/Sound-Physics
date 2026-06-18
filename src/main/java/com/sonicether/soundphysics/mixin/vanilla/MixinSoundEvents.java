@@ -14,14 +14,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(SoundEvents.class)
 public class MixinSoundEvents {
 
-    @Mutable @Shadow @Final
+    @Mutable
+    @Shadow
+    @Final
     public static SoundEvent UI_BUTTON_CLICK;
 
     @Inject(
-            method = "<clinit>",
-            at = @At(
-                    value = "TAIL"
-            )
+        method = "<clinit>",
+        at = @At(
+            value = "TAIL"
+        )
     )
     private static void redirectGetRegisteredSoundEvent(CallbackInfo ci) {
         UI_BUTTON_CLICK = SoundPhysics.CLICK;
