@@ -38,7 +38,7 @@ dependencies {
     modCompileOnly "vexatos:Computronics:1.12.2-1.6.6:deobf@jar"
 
     modImplementation ("curse.maven:enhancedvisuals-255389:3507523")
-    modImplementation ("curse.maven:simple-voice-chat-416089:6697106")
+    modImplementation ("curse.maven:simple-voice-chat-416089:8158447")
 
     modCompileOnly ("curse.maven:midnight-304881:2727758")
     
