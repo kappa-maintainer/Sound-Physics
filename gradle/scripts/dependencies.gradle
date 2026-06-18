@@ -1,13 +1,5 @@
 apply from: 'gradle/scripts/helpers.gradle'
 
-tasks.register('downloadFile', Download) {
-    src 'https://files.vexatos.com/Computronics/Computronics-1.12.2-1.6.6-deobf.jar'
-    dest new File(project.rootDir, "libs")
-    overwrite false
-}
-
-compileJava.dependsOn(downloadFile)
-
 repositories {
     // Other repositories described by default:
     // CleanroomMC: https://maven.cleanroommc.com
@@ -19,8 +11,13 @@ repositories {
         name 'Modrinth'
         url 'https://api.modrinth.com/maven'
     }
-    flatDir {
-        dirs 'libs'
+    ivy {
+        name 'Computronics'
+        url 'https://files.vexatos.com/Computronics/'
+        patternLayout {
+            artifact '[artifact]-[revision]-[classifier].[ext]'
+        }
+        metadataSources { artifact() }
     }
     mavenLocal() // Must be last for caching to work
 }
@@ -38,7 +35,7 @@ dependencies {
     //compileOnly "mush:themidnight:0.3.5"
     modCompileOnly ("curse.maven:ic2exp-242638:3838713") //IC2 EXP
     modImplementation ("curse.maven:ic2c-242942:8153677") //IC2 Classic
-    compileOnly "stub:Computronics:1.12.2-1.6.6:deobf" // Computronics
+    compileOnly "vexatos:Computronics:1.12.2-1.6.6:deobf@jar"
 
     modImplementation ("curse.maven:enhancedvisuals-255389:3507523")
     modImplementation ("curse.maven:simple-voice-chat-416089:6697106")
