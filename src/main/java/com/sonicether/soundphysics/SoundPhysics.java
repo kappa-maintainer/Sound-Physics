@@ -519,8 +519,8 @@ public class SoundPhysics {
 	private static void evaluateEnvironment(final int sourceID, final float posX, final float posY, final float posZ, final SoundCategory category,
 											final String name, ISound.AttenuationType attType) {
 		try {
-			if (mc.player == null || mc.world == null || category == SoundCategory.MASTER || attType == ISound.AttenuationType.NONE ||
-				 category == SoundCategory.RECORDS || category == SoundCategory.MUSIC) {
+		if (mc.player == null || mc.world == null || name == null || category == SoundCategory.MASTER || attType == ISound.AttenuationType.NONE ||
+			 category == SoundCategory.RECORDS || category == SoundCategory.MUSIC) {
 				// posY <= 0 as a condition has to be there: Ingame
 				// menu clicks do have a player and world present
 				// The Y position check has been removed due to problems with Cubic Chunks
