@@ -1,7 +1,7 @@
 {
   "required": true,
   "package": "com.sonicether.soundphysics.mixin.vanilla",
-  "compatibilityLevel": "JAVA_8",
+  "compatibilityLevel": "JAVA_25",
   "refmap": "soundphysics.mixins.refmap.json",
   "mixins": [
     "MixinPlayerList",

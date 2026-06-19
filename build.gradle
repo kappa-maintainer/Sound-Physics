@@ -74,7 +74,7 @@ unimined.minecraft {
         runs.auth.username = minecraft_username
         runs.all {
             var map = getSystemProperties()
-            map.put("cleanroom.dev.mixin", "${mod_id}.default.mixin.json,${mod_id}.mod.mixin.json")
+            map.put("cleanroom.dev.mixin", "soundphysics.mod.mixin.json,soundphysics.vanilla.mixin.json")
             def extraArgs = propertyString('extra_jvm_args')
             if (extraArgs != null && !extraArgs.trim().isEmpty()) {
                 jvmArgs += extraArgs.split("\\s+").toList()
@@ -94,7 +94,6 @@ unimined.minecraft {
             mixinRemap {
                 enableBaseMixin()
                 enableMixinExtra()
-                disableRefmap()
             }
         }
     } else {
@@ -102,7 +101,6 @@ unimined.minecraft {
             mixinRemap {
                 enableBaseMixin()
                 enableMixinExtra()
-                disableRefmap()
             }
         }
     }
@@ -166,7 +164,7 @@ jar {
         manifest {
             def attribute_map = [:]
             attribute_map['ModType'] = "CRL"
-            //attribute_map['MixinConfigs'] = "${mod_id}.default.mixin.json,${mod_id}.mod.mixin.json"
+            attribute_map['MixinConfigs'] = "soundphysics.mod.mixin.json,soundphysics.vanilla.mixin.json"
             if (configurations.contain.size() > 0) {
                 attribute_map['ContainedDeps'] = configurations.contain.collect { it.name }.join(' ')
                 attribute_map['NonModDeps'] = true
