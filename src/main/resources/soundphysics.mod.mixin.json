@@ -1,0 +1,40 @@
+{
+    "required": true,
+    "package": "com.sonicether.soundphysics.mixin",
+    "target": "@env(MOD)",
+    "plugin": "com.sonicether.soundphysics.SPMixinConfigPlugin",
+    "compatibilityLevel": "JAVA_25",
+    "refmap": "soundphysics.mixins.refmap.json",
+    "mixins": [
+        "midnight.MixinSoundReverbHandler",
+        
+        "ic2c.MixinAudioManagerClient",
+        "ic2c.MixinAudioSourceClient",
+        
+        "ic2exp.MixinAudioManagerClient",
+        "ic2exp.MixinAudioSourceClient",
+        
+        "glibysrc.MixinClientStreamManager",
+        "glibysrc.MixinServerStreamManager",
+        "glibysrc.MixinThreadUpdateStream",
+        
+        "glibyfix.MixinOvrLibraryLWJGLOpenAL",
+        "glibyfix.MixinOvrSourceLWJGLOpenAL",
+        
+        "enhancedvisuals.MixinVisualHandler",
+
+        "computronics.MixinStreamingAudioPlayer",
+        "computronics.MixinAudioPacket",
+        "computronics.MixinTileSpeaker",
+        "computronics.MixinTileTapeDrive1",
+        "computronics.MixinTileSpeechBox1",
+        
+        "umc.MixinClientSound",
+
+        "voicechat.MixinJavaSpeakerBase",
+        "voicechat.MixinSpeakerManager"
+    ],
+    "client": [
+    ],
+    "minVersion": "0.8"
+}
