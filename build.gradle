@@ -7,6 +7,7 @@ plugins {
     id 'com.gradleup.shadow' version '9.4.1' // Remove this line and shadowJar task if you don't need shadow
     id 'org.jetbrains.changelog' version '2.2.1'
     id 'xyz.wagyourtail.unimined' version '1.4.23-kappa'
+    id 'net.kyori.blossom' version '2.2.0'
 }
 
 apply from: 'gradle/scripts/helpers.gradle'
@@ -16,10 +17,6 @@ assertProperty 'mod_version'
 assertProperty 'root_package'
 assertProperty 'mod_id'
 assertProperty 'mod_name'
-
-if (propertyBool('generate_reference_class')) {
-    generateReferenceClass()
-}
 
 assertSubProperties 'use_access_transformer', 'access_transformer_locations'
 assertSubProperties 'is_coremod', 'coremod_includes_mod', 'coremod_plugin_class_name'
@@ -57,6 +54,30 @@ configurations {
     implementation.extendsFrom(contain)
     modCompileOnly
     compileOnly.extendsFrom modCompileOnly
+}
+
+sourceSets {
+    main {
+        blossom {
+            javaSources {
+                property('mod_id', propertyString('mod_id'))
+                property('mod_name', propertyString('mod_name'))
+                property('mod_version', propertyString('mod_version'))
+                property('package', "${propertyString('root_package')}.${propertyString('mod_id')}")
+            }
+            resources {
+                property('mod_id', propertyString('mod_id'))
+                property('mod_name', propertyString('mod_name'))
+                property('mod_version', propertyString('mod_version'))
+                property('mod_description', propertyString('mod_description'))
+                property('mod_authors', propertyStringList('mod_authors', ',').join(', '))
+                property('mod_credits', propertyString('mod_credits'))
+                property('mod_url', propertyString('mod_url'))
+                property('mod_update_json', propertyString('mod_update_json'))
+                property('mod_logo_path', propertyString('mod_logo_path'))
+            }
+        }
+    }
 }
 
 unimined.minecraft {
@@ -134,7 +155,7 @@ processResources {
     inputs.property 'mod_update_json', propertyString('mod_update_json')
     inputs.property 'mod_logo_path', propertyString('mod_logo_path')
 
-    def filterList = ['mcmod.info', 'pack.mcmeta']
+    def filterList = ['pack.mcmeta']
 
     filesMatching(filterList) { fcd ->
         fcd.expand(
@@ -221,18 +242,6 @@ String parserChangelog() {
         throw new GradleException('publish_with_changelog is true, but the changelog for the latest version is empty!')
     }
     return parsedChangelog
-}
-
-def generateReferenceClass() {
-    var target = new File("${rootProject.projectDir}/src/main/java/${root_package.replace('.', '/')}/${mod_id}/Reference.java")
-    var template = new File("${rootProject.projectDir}/template/Reference.java")
-    var replaceMap = [$package : "${root_package}.${mod_id}", $mod_id : mod_id, $mod_name : mod_name, $mod_version : mod_version]
-    target.withWriter { var writer ->
-        template.eachLine { var line ->
-            replaceMap.each {if (line.contains(it.key)) line = line.replace(it.key, it.value)}
-            writer.write(line + "\n");
-        }
-    }
 }
 
 tasks.withType(JavaCompile).configureEach {
