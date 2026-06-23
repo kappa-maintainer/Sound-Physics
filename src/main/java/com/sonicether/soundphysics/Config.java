@@ -4,6 +4,7 @@ import java.io.File;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.ConfigElement;
@@ -65,6 +66,9 @@ public class Config {
 	public static boolean autoSteroDownmix;
 	public static String[] downMixBlacklist;
 
+	// reverb
+	public static String[] reverbBlacklist;
+
 	// misc
 	public static boolean autoSteroDownmixLogging;
 	public static boolean injectorLogging;
@@ -107,6 +111,23 @@ public class Config {
 		}
 		blacklist.deleteCharAt(blacklist.length() - 1);
 		return blacklist.toString();
+	}
+
+	private static Pattern reverbBlacklistPattern;
+
+	static Pattern getReverbBlacklistPattern() {
+		if (reverbBlacklist == null || reverbBlacklist.length == 0) {
+			return null;
+		}
+		if (reverbBlacklistPattern == null) {
+			StringBuilder sb = new StringBuilder();
+			for (String entry : reverbBlacklist) {
+				sb.append(entry).append("|");
+			}
+			sb.deleteCharAt(sb.length() - 1);
+			reverbBlacklistPattern = Pattern.compile(sb.toString());
+		}
+		return reverbBlacklistPattern;
 	}
 
 	public List<IConfigElement> getConfigElements() {
@@ -222,6 +243,13 @@ public class Config {
 						"^enhancedvisuals:.*"
 				},
 				"REQUIRES RESTART. Regex pattern of downmix blacklist, they will be chained with |");
+
+		// reverb
+		reverbBlacklist = this.forgeConfig.getStringList("Reverb Blacklist", categoryCompatibility, new String[]{
+						"mwc:.*"
+				},
+				"Regex patterns for sounds that should NOT have reverb applied (matched against the sound event name). Default excludes MWC gun sounds.");
+		reverbBlacklistPattern = null; // Invalidate cached pattern
 
 		// misc
 		autoSteroDownmixLogging = this.forgeConfig.getBoolean("Stereo downmix Logging", categoryMisc, false,

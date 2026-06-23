@@ -4,13 +4,10 @@ import net.minecraft.block.Block;
 import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.properties.PropertyDirection;
-import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
 import net.minecraft.client.audio.MovingSound;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.EntityBoat;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ResourceLocation;
@@ -61,6 +58,7 @@ public class SoundPhysics {
 	private static final Pattern noteBlockPattern = Pattern.compile(".*block.note.*");
 
 	private static final Pattern allPattern = Pattern.compile(Config.getBlacklist());
+	private static Pattern reverbBlacklistPattern;
 
 	@Mod.EventHandler
 	public void preInit(final FMLPreInitializationEvent event) {
@@ -136,6 +134,7 @@ public class SoundPhysics {
 		globalReverbMultiplier = 0.7f * Config.globalReverbGain;
 		soundDistanceAllowance = Config.soundDistanceAllowance;
 		globalVolumeMultiplier0 = Config.globalVolumeMultiplier;
+		reverbBlacklistPattern = Config.getReverbBlacklistPattern();
 
 		if (auxFXSlot0 != 0) {
 			// Set the global reverb parameters and apply them to the effect and
@@ -284,7 +283,8 @@ public class SoundPhysics {
 	 */
 	public static float applyGlobalVolumeMultiplier(final float volume) {
 		if (!Config.volumeMulOnlyAffected || !(mc.player == null || mc.world == null || lastSoundCategory == SoundCategory.MASTER ||
-			lastSoundAtt == ISound.AttenuationType.NONE || lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC)) {
+			lastSoundAtt == ISound.AttenuationType.NONE || lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC ||
+			(reverbBlacklistPattern != null && lastSoundName != null && reverbBlacklistPattern.matcher(lastSoundName).matches()))) {
 			return volume*globalVolumeMultiplier0;
 		} else {
 			return volume;
@@ -519,11 +519,16 @@ public class SoundPhysics {
 	private static void evaluateEnvironment(final int sourceID, final float posX, final float posY, final float posZ, final SoundCategory category,
 											final String name, ISound.AttenuationType attType) {
 		try {
-		if (mc.player == null || mc.world == null || name == null || category == SoundCategory.MASTER || attType == ISound.AttenuationType.NONE ||
-			 category == SoundCategory.RECORDS || category == SoundCategory.MUSIC) {
+		    if (mc.player == null || mc.world == null || name == null || category == SoundCategory.MASTER || attType == ISound.AttenuationType.NONE || 
+                category == SoundCategory.RECORDS || category == SoundCategory.MUSIC) {
 				// posY <= 0 as a condition has to be there: Ingame
 				// menu clicks do have a player and world present
 				// The Y position check has been removed due to problems with Cubic Chunks
+				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+				return;
+			}
+
+			if (reverbBlacklistPattern != null && reverbBlacklistPattern.matcher(name).matches()) {
 				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 				return;
 			}
@@ -896,37 +901,22 @@ public class SoundPhysics {
 		event.getRegistry().register(CLICK);
 	}
 
-	protected static boolean checkErrorLog(final String errorMessage) {
+	protected static void checkErrorLog(final String errorMessage) {
 		final int error = AL10.alGetError();
 		if (error == AL10.AL_NO_ERROR) {
-			return false;
+			return;
 		}
 
-		String errorName;
+		String errorName = switch (error) {
+            case AL10.AL_INVALID_NAME -> "AL_INVALID_NAME";
+            case AL10.AL_INVALID_ENUM -> "AL_INVALID_ENUM";
+            case AL10.AL_INVALID_VALUE -> "AL_INVALID_VALUE";
+            case AL10.AL_INVALID_OPERATION -> "AL_INVALID_OPERATION";
+            case AL10.AL_OUT_OF_MEMORY -> "AL_OUT_OF_MEMORY";
+            default -> Integer.toString(error);
+        };
 
-		switch (error) {
-			case AL10.AL_INVALID_NAME:
-				errorName = "AL_INVALID_NAME";
-				break;
-			case AL10.AL_INVALID_ENUM:
-				errorName = "AL_INVALID_ENUM";
-				break;
-			case AL10.AL_INVALID_VALUE:
-				errorName = "AL_INVALID_VALUE";
-				break;
-			case AL10.AL_INVALID_OPERATION:
-				errorName = "AL_INVALID_OPERATION";
-				break;
-			case AL10.AL_OUT_OF_MEMORY:
-				errorName = "AL_OUT_OF_MEMORY";
-				break;
-			default:
-				errorName = Integer.toString(error);
-				break;
-		}
-
-		logError(errorMessage + " OpenAL error " + errorName);
-		return true;
-	}
+        logError(errorMessage + " OpenAL error " + errorName);
+    }
 
 }
