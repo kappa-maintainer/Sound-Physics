@@ -1,6 +1,7 @@
 package com.sonicether.soundphysics.mixin.vanilla;
 
 import com.sonicether.soundphysics.SoundPhysics;
+import org.lwjgl.openal.AL10;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,6 +19,16 @@ public class MixinSourceLWJGLOpenAL extends Source {
 
     public MixinSourceLWJGLOpenAL(boolean priority, boolean toStream, boolean toLoop, String sourcename, FilenameURL filenameURL, SoundBuffer soundBuffer, float x, float y, float z, int attModel, float distOrRoll, boolean temporary) {
         super(priority, toStream, toLoop, sourcename, filenameURL, soundBuffer, x, y, z, attModel, distOrRoll, temporary);
+    }
+
+    @Inject(method = "play", at = @At(value = "INVOKE", target = "Lpaulscode/sound/Channel;play()V"))
+    private void beforeChannelPlay(Channel c, CallbackInfo ci) {
+        if (SoundPhysics.isSoundBlacklisted() && channelOpenAL != null && channelOpenAL.ALSource != null) {
+            attModel = SoundSystemConfig.ATTENUATION_LINEAR;
+            distOrRoll = 16.0f;
+            AL10.alSourcef(channelOpenAL.ALSource.get(0), AL10.AL_ROLLOFF_FACTOR, 0.0f);
+            positionChanged();
+        }
     }
 
     @Inject(method = "play", at = @At(value = "INVOKE", target = "Lpaulscode/sound/Channel;play()V", shift = At.Shift.AFTER))

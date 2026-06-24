@@ -60,6 +60,10 @@ public class SoundPhysics {
 	private static final Pattern allPattern = Pattern.compile(Config.getBlacklist());
 	private static Pattern reverbBlacklistPattern;
 
+	public static boolean isSoundBlacklisted() {
+		return reverbBlacklistPattern != null && lastSoundName != null && reverbBlacklistPattern.matcher(lastSoundName).matches();
+	}
+
 	@Mod.EventHandler
 	public void preInit(final FMLPreInitializationEvent event) {
         SoundSystemConfig.setNumberNormalChannels(1024);
@@ -235,6 +239,20 @@ public class SoundPhysics {
 	}
 
 	/**
+	 * CALLED BY ASM INJECTED CODE (MixinSoundManager.beforeNewSource)!
+	 * Captures sound info from ISound early, before newSource is called,
+	 * so that MixinSoundSystem can check the reverb blacklist before changing the attenuation model.
+	 */
+	public static void setLastSoundFromISound(final ISound snd) {
+		ResourceLocation loc = snd.getSoundLocation();
+		lastSoundName = loc != null ? loc.toString() : null;
+		lastSoundCategory = getSoundCategory(snd.getCategory(), lastSoundName);
+		lastSoundAtt = snd.getAttenuationType();
+		if (snd instanceof MovingSound)
+			lastSoundCategory = SoundCategory.RECORDS;
+	}
+
+	/**
 	 * CALLED BY ASM INJECTED CODE!
 	 */
 	public static void setLastSound(final SoundCategory sc, final String soundName) {
@@ -286,7 +304,7 @@ public class SoundPhysics {
 	public static float applyGlobalVolumeMultiplier(final float volume) {
 		if (!Config.volumeMulOnlyAffected || !(mc.player == null || mc.world == null || lastSoundCategory == SoundCategory.MASTER ||
 			lastSoundAtt == ISound.AttenuationType.NONE || lastSoundCategory == SoundCategory.RECORDS || lastSoundCategory == SoundCategory.MUSIC ||
-			(reverbBlacklistPattern != null && lastSoundName != null && reverbBlacklistPattern.matcher(lastSoundName).matches()))) {
+			isSoundBlacklisted())) {
 			return volume*globalVolumeMultiplier0;
 		} else {
 			return volume;
@@ -530,7 +548,7 @@ public class SoundPhysics {
 				return;
 			}
 
-			if (reverbBlacklistPattern != null && reverbBlacklistPattern.matcher(name).matches()) {
+			if (isSoundBlacklisted()) {
 				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 				return;
 			}
