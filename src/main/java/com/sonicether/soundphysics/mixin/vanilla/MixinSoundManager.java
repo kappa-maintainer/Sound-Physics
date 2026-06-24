@@ -16,6 +16,12 @@ import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 @Mixin(SoundManager.class)
 public class MixinSoundManager {
+    
+    @Inject(method = "playSound", at = @At("HEAD"))
+    private void captureSoundEarly(ISound p_sound, CallbackInfo ci) {
+        SoundPhysics.setLastSoundFromISound(p_sound);
+    }
+
     @Inject(method = "playSound", locals = LocalCapture.CAPTURE_FAILSOFT, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/audio/SoundManager$SoundSystemStarterThread;setPitch(Ljava/lang/String;F)V", shift = At.Shift.AFTER))
     private void injectPlaySoundinjectPlaySound(ISound p_sound, CallbackInfo ci, SoundEventAccessor soundeventaccessor, ResourceLocation resourcelocation, Sound sound, float f3, float f, SoundCategory soundcategory, float f1, float f2, boolean flag, String s, ResourceLocation resourcelocation1) {
         SoundPhysics.setLastSound(p_sound, soundcategory, sound.getSoundLocation(), resourcelocation);

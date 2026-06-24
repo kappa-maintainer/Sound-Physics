@@ -247,9 +247,11 @@ public class Config {
 		// reverb
 		reverbBlacklist = this.forgeConfig.getStringList("Reverb Blacklist", categoryCompatibility, new String[]{
 						"mwc:.*",
+						".*rift_idle.*",
+						".*rift_unstable.*",
 						"better_quest_popup:.*"
 				},
-				"Regex patterns for sounds that should NOT have reverb applied (matched against the sound event name). Default excludes MWC gun sounds and Better Quest Popup sounds.");
+				"Regex patterns for sounds that should NOT have reverb, volume multiplier, or attenuation model changes applied (matched against the sound event name).");
 		reverbBlacklistPattern = null; // Invalidate cached pattern
 
 		// misc
