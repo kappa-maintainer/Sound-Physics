@@ -548,7 +548,7 @@ public class SoundPhysics {
 				return;
 			}
 
-			if (isSoundBlacklisted()) {
+			if (reverbBlacklistPattern.matcher(name).matches()) {
 				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 				return;
 			}
@@ -556,6 +556,11 @@ public class SoundPhysics {
 			final boolean isRain = rainPattern.matcher(name).matches();
 
 			if (Config.skipRainOcclusionTracing && isRain) {
+				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+				return;
+			}
+
+			if (!mc.isCallingFromMinecraftThread()) {
 				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 				return;
 			}
