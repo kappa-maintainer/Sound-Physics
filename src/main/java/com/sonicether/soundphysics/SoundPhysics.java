@@ -17,11 +17,13 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +35,8 @@ import javax.sound.sampled.AudioFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 
@@ -64,6 +68,13 @@ public class SoundPhysics {
 		return reverbBlacklistPattern != null && lastSoundName != null && reverbBlacklistPattern.matcher(lastSoundName).matches();
 	}
 
+	private static final Queue<PendingEvaluation> pendingEvaluations = new ConcurrentLinkedQueue<>();
+	private static final int MAX_PENDING_EVALUATIONS = 256;
+
+    private record PendingEvaluation(int sourceID, float posX, float posY, float posZ, SoundCategory category,
+                                     String name, ISound.AttenuationType attType) {
+    }
+
 	@Mod.EventHandler
 	public void preInit(final FMLPreInitializationEvent event) {
         SoundSystemConfig.setNumberNormalChannels(1024);
@@ -74,6 +85,7 @@ public class SoundPhysics {
 	@Mod.EventHandler
 	public void init(final FMLInitializationEvent event) {
 		Config.instance.init(event);
+		MinecraftForge.EVENT_BUS.register(this);
 	}
 
 	private static int auxFXSlot0;
@@ -548,7 +560,7 @@ public class SoundPhysics {
 				return;
 			}
 
-			if (reverbBlacklistPattern.matcher(name).matches()) {
+			if (reverbBlacklistPattern != null && reverbBlacklistPattern.matcher(name).matches()) {
 				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 				return;
 			}
@@ -561,7 +573,9 @@ public class SoundPhysics {
 			}
 
 			if (!mc.isCallingFromMinecraftThread()) {
-				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+				if (pendingEvaluations.size() < MAX_PENDING_EVALUATIONS) {
+					pendingEvaluations.add(new PendingEvaluation(sourceID, posX, posY, posZ, category, name, attType));
+				}
 				return;
 			}
 
@@ -924,6 +938,24 @@ public class SoundPhysics {
 	@SubscribeEvent
 	public void registerSound(RegistryEvent.Register<SoundEvent> event) {
 		event.getRegistry().register(CLICK);
+	}
+
+	@SubscribeEvent
+	public void onClientTick(TickEvent.ClientTickEvent event) {
+		if (event.phase != TickEvent.Phase.END) return;
+		if (mc == null || mc.player == null || mc.world == null) {
+			pendingEvaluations.clear();
+			return;
+		}
+		PendingEvaluation eval;
+		while ((eval = pendingEvaluations.poll()) != null) {
+			try {
+				evaluateEnvironment(eval.sourceID, eval.posX, eval.posY, eval.posZ,
+				                    eval.category, eval.name, eval.attType);
+			} catch (Exception e) {
+				logger.error("Error while evaluating deferred environment:", e);
+			}
+		}
 	}
 
 	protected static void checkErrorLog(final String errorMessage) {
