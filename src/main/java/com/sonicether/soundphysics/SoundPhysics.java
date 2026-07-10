@@ -592,14 +592,9 @@ public class SoundPhysics {
 
 				final Block blockHit = mc.world.getBlockState(rayHit.getBlockPos()).getBlock();
 
-				float blockOcclusion = 1.0f;
-
-				if (!blockHit.isOpaqueCube(blockHit.getDefaultState())) {
-					// log("not a solid block!");
-					blockOcclusion *= 0.15f;
+				if (blockHit.isOpaqueCube(blockHit.getDefaultState())) {
+					occlusionAccumulation += 1.0f;
 				}
-
-				occlusionAccumulation += blockOcclusion;
 
 				rayOrigin = new Vec3d(rayHit.hitVec.x + normalToPlayer.x * 0.1, rayHit.hitVec.y + normalToPlayer.y * 0.1,
 						rayHit.hitVec.z + normalToPlayer.z * 0.1);

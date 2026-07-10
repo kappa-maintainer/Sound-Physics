@@ -4,9 +4,8 @@ plugins {
     id 'java'
     id 'java-library'
     id 'maven-publish'
-    id 'com.gradleup.shadow' version '9.4.1' // Remove this line and shadowJar task if you don't need shadow
     id 'org.jetbrains.changelog' version '2.2.1'
-    id 'xyz.wagyourtail.unimined' version '1.4.23-kappa'
+    id 'xyz.wagyourtail.unimined' version '1.4.25-kappa'
     id 'net.kyori.blossom' version '2.2.0'
 }
 
@@ -109,20 +108,11 @@ unimined.minecraft {
     }
 
     defaultRemapJar = false
-
-    if (propertyBool('enable_shadow')) {
-        remap(tasks.shadowJar) {
-            mixinRemap {
-                enableBaseMixin()
-                enableMixinExtra()
-            }
-        }
-    } else {
-        remap(tasks.jar) {
-            mixinRemap {
-                enableBaseMixin()
-                enableMixinExtra()
-            }
+    
+    remap(tasks.jar) {
+        mixinRemap {
+            enableBaseMixin()
+            enableMixinExtra()
         }
     }
 
@@ -202,18 +192,10 @@ jar {
             attributes(attribute_map)
         }
     }
-    if (propertyBool('enable_shadow')) {
-        finalizedBy(tasks.named("remapShadowJar"))
-    } else {
-        finalizedBy(tasks.named("remapJar"))
-    }
+    finalizedBy(tasks.named("remapJar"))
 }
 
 
-shadowJar {
-    configurations = [project.configurations.shadow]
-    archiveClassifier = "shadow"
-}
 
 compileTestJava {
     sourceCompatibility = targetCompatibility = JavaVersion.VERSION_25

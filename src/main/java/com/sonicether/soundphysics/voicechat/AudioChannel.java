@@ -32,7 +32,7 @@ public class AudioChannel {
             return;
         }
 
-        SoundPhysics.setLastSound(SoundCategory.MASTER, String.format(CATEGORY_TEMPLATE, category == null ? CATEGORY_VOICECHAT : category));
+		SoundPhysics.setLastSound(SoundCategory.PLAYERS, String.format(CATEGORY_TEMPLATE, category == null ? CATEGORY_VOICECHAT : category));
 
         SoundPhysics.onPlaySound((float) soundPos.x, (float) soundPos.y, (float) soundPos.z, source);
 

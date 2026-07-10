@@ -29,10 +29,7 @@
         "computronics.MixinTileTapeDrive1",
         "computronics.MixinTileSpeechBox1",
         
-        "umc.MixinClientSound",
-
-        "voicechat.MixinJavaSpeakerBase",
-        "voicechat.MixinSpeakerManager"
+        "umc.MixinClientSound"
     ],
     "client": [
     ],
