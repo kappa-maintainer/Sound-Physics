@@ -1,5 +1,8 @@
 package com.sonicether.soundphysics;
 
+import com.sonicether.soundphysics.utils.RaycastHelper;
+import com.sonicether.soundphysics.utils.SnapshotManager;
+import com.sonicether.soundphysics.world.WorldProxy;
 import net.minecraft.block.Block;
 import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
@@ -17,6 +20,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.IBlockAccess;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -118,6 +123,7 @@ public class SoundPhysics {
 			logError("Failed to init EFX");
 			logError(e.toString());
 		}
+		MinecraftForge.EVENT_BUS.register(new SnapshotManager());
 	}
 
 	/**
@@ -432,8 +438,8 @@ public class SoundPhysics {
 	}
 
 	@SuppressWarnings("deprecation")
-	private static float getBlockReflectivity(final BlockPos blockPos) {
-		final Block block = mc.world.getBlockState(blockPos).getBlock();
+	private static float getBlockReflectivity(final BlockPos blockPos, IBlockAccess world) {
+		final Block block = world.getBlockState(blockPos).getBlock();
 		final SoundType soundType = block.getSoundType();
 
 		float reflectivity = 0.5f;
@@ -482,7 +488,7 @@ public class SoundPhysics {
 	}
 
 	private static Vec3d offsetSoundByName(final double soundX, final double soundY, final double soundZ,
-			final Vec3d playerPos, final String name, final SoundCategory category) {
+			final Vec3d playerPos, final String name, final SoundCategory category, IBlockAccess world) {
 		double offsetX = 0.0;
 		double offsetY = 0.0;
 		double offsetZ = 0.0;
@@ -497,7 +503,7 @@ public class SoundPhysics {
 		}
 
 		if ((category == SoundCategory.BLOCKS || blockPattern.matcher(name).matches() ||
-			(name.equals("openal") && !mc.world.isAirBlock(new BlockPos(soundX,soundY,soundZ)))) &&
+			(name.equals("openal") && !world.isAirBlock(new BlockPos(soundX,soundY,soundZ)))) &&
 			(MathHelper.floor(playerPos.x) != MathHelper.floor(soundX) ||
 			 MathHelper.floor(playerPos.y) != MathHelper.floor(soundY) ||
 			 MathHelper.floor(playerPos.z) != MathHelper.floor(soundZ))) {
@@ -551,6 +557,12 @@ public class SoundPhysics {
 				return;
 			}
 
+			final IBlockAccess world = WorldProxy.getOrFallback();
+			if (world == null) {
+				setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+				return;
+			}
+
 			final boolean isRain = rainPattern.matcher(name).matches();
 
 			if (Config.skipRainOcclusionTracing && isRain) {
@@ -562,7 +574,7 @@ public class SoundPhysics {
 			final float absorptionCoeff = Config.globalBlockAbsorption * 3.0f;
 
 			final Vec3d playerPos = new Vec3d(mc.player.posX, mc.player.posY + getPlayerEyeHeight(), mc.player.posZ);
-			final Vec3d soundPos = offsetSoundByName(posX, posY, posZ, playerPos, name, category);
+			final Vec3d soundPos = offsetSoundByName(posX, posY, posZ, playerPos, name, category, world);
 			final Vec3d normalToPlayer = playerPos.subtract(soundPos).normalize();
 
 			float airAbsorptionFactor = 1.0f;
@@ -584,13 +596,13 @@ public class SoundPhysics {
 			float occlusionAccumulation = 0.0f;
 
 			for (int i = 0; i < 10; i++) {
-				final RayTraceResult rayHit = mc.world.rayTraceBlocks(rayOrigin, playerPos, true);
+				final RayTraceResult rayHit = RaycastHelper.rayTraceBlocks(world, rayOrigin, playerPos, true);
 
 				if (rayHit == null) {
 					break;
 				}
 
-				final Block blockHit = mc.world.getBlockState(rayHit.getBlockPos()).getBlock();
+				final Block blockHit = world.getBlockState(rayHit.getBlockPos()).getBlock();
 
 				if (blockHit.isOpaqueCube(blockHit.getDefaultState())) {
 					occlusionAccumulation += 1.0f;
@@ -652,7 +664,7 @@ public class SoundPhysics {
 				final Vec3d rayEnd = new Vec3d(rayStart.x + rayDir.x * maxDistance, rayStart.y + rayDir.y * maxDistance,
 						rayStart.z + rayDir.z * maxDistance);
 
-				final RayTraceResult rayHit = mc.world.rayTraceBlocks(rayStart, rayEnd, true);
+				final RayTraceResult rayHit = RaycastHelper.rayTraceBlocks(world, rayStart, rayEnd, true);
 
 				if (rayHit != null) {
 					final double rayLength = soundPos.distanceTo(rayHit.hitVec);
@@ -674,10 +686,10 @@ public class SoundPhysics {
 						final Vec3d newRayEnd = new Vec3d(newRayStart.x + newRayDir.x * maxDistance,
 								newRayStart.y + newRayDir.y * maxDistance, newRayStart.z + newRayDir.z * maxDistance);
 
-						final RayTraceResult newRayHit = mc.world.rayTraceBlocks(newRayStart, newRayEnd, true);
+						final RayTraceResult newRayHit = RaycastHelper.rayTraceBlocks(world, newRayStart, newRayEnd, true);
 
 						float energyTowardsPlayer = 0.25f;
-						final float blockReflectivity = getBlockReflectivity(lastHitBlock);
+						final float blockReflectivity = getBlockReflectivity(lastHitBlock, world);
 						energyTowardsPlayer *= blockReflectivity * 0.75f + 0.25f;
 
 						if (newRayHit == null) {
@@ -701,7 +713,7 @@ public class SoundPhysics {
 								final Vec3d finalRayStart = new Vec3d(lastHitPos.x + lastHitNormal.x * 0.01,
 										lastHitPos.y + lastHitNormal.y * 0.01, lastHitPos.z + lastHitNormal.z * 0.01);
 
-								final RayTraceResult finalRayHit = mc.world.rayTraceBlocks(finalRayStart, playerPos, true);
+								final RayTraceResult finalRayHit = RaycastHelper.rayTraceBlocks(world, finalRayStart, playerPos, true);
 
 								if (finalRayHit == null) {
 									// log("Secondary ray hit the player!");

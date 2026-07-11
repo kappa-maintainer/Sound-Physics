@@ -73,6 +73,12 @@ public class Config {
 	public static boolean autoSteroDownmixLogging;
 	public static boolean injectorLogging;
 
+	// snapshot
+	public static boolean useSnapshot;
+	public static int snapshotRange;
+	public static int snapshotMaxRetainTicks;
+	public static float snapshotMaxRetainBlockDistance;
+
 	private static final String categoryGeneral = "General";
 	private static final String categoryPerformance = "Performance";
 	private static final String categoryMaterialProperties = "Material properties";
@@ -259,6 +265,16 @@ public class Config {
 				"If true, Prints sound name and format of the sounds that get converted");
 		injectorLogging = this.forgeConfig.getBoolean("Injector Logging", categoryMisc, false,
 				"If true, Logs debug info about the injector");
+
+		// snapshot
+		useSnapshot = this.forgeConfig.getBoolean("Use World Snapshot", categoryPerformance, true,
+				"If true, environment evaluation reads block data from a periodically refreshed immutable snapshot, safe for audio threads. If false, reads the live world directly (unsafe off-main-thread).");
+		snapshotRange = this.forgeConfig.getInt("Snapshot Range (chunks)", categoryPerformance, 4, 2, 8,
+				"Radius of chunks around the player to snapshot. Larger values cover more area but cost more to rebuild.");
+		snapshotMaxRetainTicks = this.forgeConfig.getInt("Snapshot Max Retain Ticks", categoryPerformance, 20, 5, 200,
+				"Rebuild the snapshot after this many ticks (20 = 1 second). Lower values are more accurate but cost more CPU.");
+		snapshotMaxRetainBlockDistance = this.forgeConfig.getFloat("Snapshot Max Retain Distance", categoryPerformance, 16.0f, 4.0f, 64.0f,
+				"Force a snapshot rebuild if the player moved more than this many blocks since the last snapshot.");
 
 		SoundPhysics.applyConfigChanges();
 		if (this.forgeConfig.hasChanged()) {
