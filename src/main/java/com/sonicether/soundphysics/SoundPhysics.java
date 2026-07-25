@@ -38,6 +38,8 @@ import javax.sound.sampled.AudioFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 
@@ -95,6 +97,8 @@ public class SoundPhysics {
 	private static int sendFilter2;
 	private static int sendFilter3;
 	private static int maxAuxSends;
+	// Voice-chat sources run continuously, so they must not share filter state with game sounds.
+	private static final Map<Integer, SourceFilters> voiceSourceFilters = new ConcurrentHashMap<>();
 
 	private static Minecraft mc;
 	private static SoundSystem sndSystem;
@@ -119,6 +123,9 @@ public class SoundPhysics {
 		sndSystem = snds;
 		try {
 			setupEFX();
+			if (isEFXReady()) {
+				com.sonicether.soundphysics.voicechat.OpenALSpeakerRouter.markReady();
+			}
 		} catch (Throwable e) {
 			logError("Failed to init EFX");
 			logError(e.toString());
@@ -133,6 +140,9 @@ public class SoundPhysics {
 		mc = Minecraft.getMinecraft();
 		try {
 			setupEFX();
+			if (isEFXReady()) {
+				com.sonicether.soundphysics.voicechat.OpenALSpeakerRouter.markReady();
+			}
 		} catch (Throwable e) {
 			logError("Failed to init EFX");
 			logError(e.toString());
@@ -221,6 +231,10 @@ public class SoundPhysics {
 		checkErrorLog("Error creating lowpass filters!");
 
 		applyConfigChanges();
+	}
+
+	private static boolean isEFXReady() {
+		return auxFXSlot0 != 0 && reverb0 != 0 && directFilter0 != 0;
 	}
 
 	private static SoundCategory getSoundCategory(final SoundCategory sc, final String name) {
@@ -362,7 +376,14 @@ public class SoundPhysics {
 	 */
 	public static void onPlaySound(final float posX, final float posY, final float posZ, final int sourceID, SoundCategory soundCat, String soundName, ISound.AttenuationType attType) {
 		//log(String.valueOf(posX)+" "+String.valueOf(posY)+" "+String.valueOf(posZ)+" - "+String.valueOf(sourceID)+" - "+soundCat.toString()+" - "+attType.toString()+" - "+soundName);
-		evaluateEnvironment(sourceID, posX, posY, posZ, soundCat, soundName, attType);
+		evaluateEnvironment(sourceID, posX, posY, posZ, soundCat, soundName, attType, false, isInsideOfMaterial(Material.WATER));
+	}
+
+	public static void applyVoiceEnvironment(int sourceID, Vec3d sourcePosition, boolean sourceInWater, String category) {
+		boolean listenerInWater = mc != null && mc.player != null && isInsideOfMaterial(Material.WATER);
+		evaluateEnvironment(sourceID, (float) sourcePosition.x, (float) sourcePosition.y, (float) sourcePosition.z,
+				SoundCategory.PLAYERS, "voicechat:" + (category == null ? "voicechat" : category),
+				ISound.AttenuationType.LINEAR, sourceInWater, listenerInWater);
 	}
 
 	/**
@@ -541,7 +562,7 @@ public class SoundPhysics {
 
 	@SuppressWarnings("deprecation")
 	private static void evaluateEnvironment(final int sourceID, final float posX, final float posY, final float posZ, final SoundCategory category,
-											final String name, ISound.AttenuationType attType) {
+											final String name, ISound.AttenuationType attType, boolean sourceInWater, boolean listenerInWater) {
 		try {
 		    if (mc.player == null || mc.world == null || name == null || category == SoundCategory.MASTER || attType == ISound.AttenuationType.NONE || 
                 category == SoundCategory.RECORDS || category == SoundCategory.MUSIC) {
@@ -626,11 +647,13 @@ public class SoundPhysics {
 			float sendCutoff2 = 1.0f;
 			float sendCutoff3 = 1.0f;
 
-			if (isInsideOfMaterial(Material.WATER)) {
-				directCutoff *= 1.0f - Config.underwaterFilter;
-			}
+			WaterEffect waterEffect = WaterEffect.of(sourceInWater, listenerInWater);
 
 			if (isRain) {
+				if (waterEffect.active()) {
+					directCutoff *= waterEffect.highFrequencyGain();
+					directGain *= waterEffect.directGain();
+				}
 				setEnvironment(sourceID, sendGain0, sendGain1, sendGain2, sendGain3, sendCutoff0, sendCutoff1, sendCutoff2,
 						sendCutoff3, directCutoff, directGain, airAbsorptionFactor);
 				return;
@@ -794,11 +817,15 @@ public class SoundPhysics {
 			sendGain2 *= (float) Math.pow(sendCutoff2, 0.1);
 			sendGain3 *= (float) Math.pow(sendCutoff3, 0.1);
 
-			if (mc.player.isInWater()) {
-				sendCutoff0 *= 0.4f;
-				sendCutoff1 *= 0.4f;
-				sendCutoff2 *= 0.4f;
-				sendCutoff3 *= 0.4f;
+			if (waterEffect.active()) {
+				sendGain0 *= waterEffect.directGain();
+				sendGain1 *= waterEffect.directGain();
+				sendGain2 *= waterEffect.directGain();
+				sendGain3 *= waterEffect.directGain();
+				sendCutoff0 *= waterEffect.highFrequencyGain();
+				sendCutoff1 *= waterEffect.highFrequencyGain();
+				sendCutoff2 *= waterEffect.highFrequencyGain();
+				sendCutoff3 *= waterEffect.highFrequencyGain();
 			}
 
 			if (Config.midnightPatching && Config.midnightPatchingFix && mc.world.provider.getDimensionType().getName().equals("midnight")) {
@@ -812,12 +839,32 @@ public class SoundPhysics {
 				sendCutoff3 = MathHelper.clamp(sendCutoff3, 0.7f, 1.0f);
 			}
 
+			if (waterEffect.active()) {
+				directGain *= waterEffect.directGain();
+				directCutoff *= waterEffect.highFrequencyGain();
+			}
+
 			setEnvironment(sourceID, sendGain0, sendGain1, sendGain2, sendGain3, sendCutoff0, sendCutoff1, sendCutoff2,
 					sendCutoff3, directCutoff, directGain, airAbsorptionFactor);
 		} catch(Exception e) {
 			logger.error("Error while evaluation environment:", e);
             logger.error(e.getMessage());
 			setEnvironment(sourceID, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+		}
+	}
+
+	private record WaterEffect(float directGain, float highFrequencyGain, boolean active) {
+		private static WaterEffect of(boolean sourceInWater, boolean listenerInWater) {
+			if (!sourceInWater && !listenerInWater) {
+				return new WaterEffect(1.0f, 1.0f, false);
+			}
+			float strength = MathHelper.clamp(Config.underwaterFilter, 0.0f, 1.0f);
+			float directGain = 1.0f - strength * 0.15f;
+			float highFrequencyGain = 1.0f - strength * 0.75f;
+			if (sourceInWater != listenerInWater) {
+				directGain *= 0.35f;
+			}
+			return new WaterEffect(directGain, highFrequencyGain, true);
 		}
 	}
 
@@ -829,39 +876,82 @@ public class SoundPhysics {
 		setEnvironment(sourceID, 0F, 0F, 0F, 0F, 1F, 1F, 1F, 1F, 1F,   auxOnly ? 0F : 1F, 1F);
 	}
 
-	private static void setEnvironment(final int sourceID, final float sendGain0, final float sendGain1,
+	public static synchronized void registerVoiceSource(int sourceID) {
+		SourceFilters filters = new SourceFilters();
+		filters.direct = createLowPassFilter();
+		filters.send0 = createLowPassFilter();
+		filters.send1 = createLowPassFilter();
+		filters.send2 = createLowPassFilter();
+		filters.send3 = createLowPassFilter();
+		voiceSourceFilters.put(sourceID, filters);
+		checkErrorLog("Error creating filters for voice source: " + sourceID);
+	}
+
+	public static synchronized void unregisterVoiceSource(int sourceID) {
+		SourceFilters filters = voiceSourceFilters.remove(sourceID);
+		if (filters == null) {
+			return;
+		}
+		EFX10.alDeleteFilters(filters.direct);
+		EFX10.alDeleteFilters(filters.send0);
+		EFX10.alDeleteFilters(filters.send1);
+		EFX10.alDeleteFilters(filters.send2);
+		EFX10.alDeleteFilters(filters.send3);
+	}
+
+	private static int createLowPassFilter() {
+		int filter = EFX10.alGenFilters();
+		EFX10.alFilteri(filter, EFX10.AL_FILTER_TYPE, EFX10.AL_FILTER_LOWPASS);
+		return filter;
+	}
+
+	private static synchronized void setEnvironment(final int sourceID, final float sendGain0, final float sendGain1,
 			final float sendGain2, final float sendGain3, final float sendCutoff0, final float sendCutoff1,
 			final float sendCutoff2, final float sendCutoff3, final float directCutoff, final float directGain,
 			final float airAbsorptionFactor) {
+		SourceFilters filters = voiceSourceFilters.get(sourceID);
+		int directFilter = filters == null ? directFilter0 : filters.direct;
+		int firstSendFilter = filters == null ? sendFilter0 : filters.send0;
+		int secondSendFilter = filters == null ? sendFilter1 : filters.send1;
+		int thirdSendFilter = filters == null ? sendFilter2 : filters.send2;
+		int fourthSendFilter = filters == null ? sendFilter3 : filters.send3;
 		// Set reverb send filter values and set source to send to all reverb fx
 		// slots
 		if (maxAuxSends >= 4) {
-			EFX10.alFilterf(sendFilter0, EFX10.AL_LOWPASS_GAIN, sendGain0);
-			EFX10.alFilterf(sendFilter0, EFX10.AL_LOWPASS_GAINHF, sendCutoff0);
-			AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot0, 3, sendFilter0);
+			EFX10.alFilterf(firstSendFilter, EFX10.AL_LOWPASS_GAIN, sendGain0);
+			EFX10.alFilterf(firstSendFilter, EFX10.AL_LOWPASS_GAINHF, sendCutoff0);
+			AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot0, 3, firstSendFilter);
 		}
 		if (maxAuxSends >= 3) {
-			EFX10.alFilterf(sendFilter1, EFX10.AL_LOWPASS_GAIN, sendGain1);
-			EFX10.alFilterf(sendFilter1, EFX10.AL_LOWPASS_GAINHF, sendCutoff1);
-			AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot1, 2, sendFilter1);
+			EFX10.alFilterf(secondSendFilter, EFX10.AL_LOWPASS_GAIN, sendGain1);
+			EFX10.alFilterf(secondSendFilter, EFX10.AL_LOWPASS_GAINHF, sendCutoff1);
+			AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot1, 2, secondSendFilter);
 		}
 		if (maxAuxSends >= 2) {
-			EFX10.alFilterf(sendFilter2, EFX10.AL_LOWPASS_GAIN, sendGain2);
-			EFX10.alFilterf(sendFilter2, EFX10.AL_LOWPASS_GAINHF, sendCutoff2);
-			AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot2, 1, sendFilter2);
+			EFX10.alFilterf(thirdSendFilter, EFX10.AL_LOWPASS_GAIN, sendGain2);
+			EFX10.alFilterf(thirdSendFilter, EFX10.AL_LOWPASS_GAINHF, sendCutoff2);
+			AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot2, 1, thirdSendFilter);
 		}
 		if (maxAuxSends >= 1) {
-			EFX10.alFilterf(sendFilter3, EFX10.AL_LOWPASS_GAIN, sendGain3);
-			EFX10.alFilterf(sendFilter3, EFX10.AL_LOWPASS_GAINHF, sendCutoff3);
-			AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot3, 0, sendFilter3);
+			EFX10.alFilterf(fourthSendFilter, EFX10.AL_LOWPASS_GAIN, sendGain3);
+			EFX10.alFilterf(fourthSendFilter, EFX10.AL_LOWPASS_GAINHF, sendCutoff3);
+			AL11.alSource3i(sourceID, EFX10.AL_AUXILIARY_SEND_FILTER, auxFXSlot3, 0, fourthSendFilter);
 		}
 
-		EFX10.alFilterf(directFilter0, EFX10.AL_LOWPASS_GAIN, directGain);
-		EFX10.alFilterf(directFilter0, EFX10.AL_LOWPASS_GAINHF, directCutoff);
-		AL10.alSourcei(sourceID, EFX10.AL_DIRECT_FILTER, directFilter0);
+		EFX10.alFilterf(directFilter, EFX10.AL_LOWPASS_GAIN, directGain);
+		EFX10.alFilterf(directFilter, EFX10.AL_LOWPASS_GAINHF, directCutoff);
+		AL10.alSourcei(sourceID, EFX10.AL_DIRECT_FILTER, directFilter);
 
 		AL10.alSourcef(sourceID, EFX10.AL_AIR_ABSORPTION_FACTOR, MathHelper.clamp(Config.airAbsorption * airAbsorptionFactor,0.0f,10.0f));
 		checkErrorLog("Error while setting environment for source: " + sourceID);
+	}
+
+	private static final class SourceFilters {
+		private int direct;
+		private int send0;
+		private int send1;
+		private int send2;
+		private int send3;
 	}
 
 	/**

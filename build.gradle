@@ -5,7 +5,7 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'org.jetbrains.changelog' version '2.2.1'
-    id 'xyz.wagyourtail.unimined' version '1.4.25-kappa'
+    id 'xyz.wagyourtail.unimined' version '1.4.27-kappa'
     id 'net.kyori.blossom' version '2.2.0'
 }
 

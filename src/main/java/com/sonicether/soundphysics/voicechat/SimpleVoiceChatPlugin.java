@@ -4,28 +4,17 @@ import com.sonicether.soundphysics.Config;
 import com.sonicether.soundphysics.Reference;
 import com.sonicether.soundphysics.SoundPhysics;
 import de.maxhenkel.voicechat.api.ForgeVoicechatPlugin;
-import de.maxhenkel.voicechat.api.Position;
 import de.maxhenkel.voicechat.api.VoicechatApi;
 import de.maxhenkel.voicechat.api.VoicechatPlugin;
 import de.maxhenkel.voicechat.api.VolumeCategory;
 import de.maxhenkel.voicechat.api.audiochannel.ClientLocationalAudioChannel;
 import de.maxhenkel.voicechat.api.events.ClientSoundEvent;
 import de.maxhenkel.voicechat.api.events.ClientVoicechatConnectionEvent;
-import de.maxhenkel.voicechat.api.events.CreateOpenALContextEvent;
 import de.maxhenkel.voicechat.api.events.EventRegistration;
-import de.maxhenkel.voicechat.api.events.OpenALSoundEvent;
 import de.maxhenkel.voicechat.api.events.VoicechatServerStartedEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.math.Vec3d;
-import org.lwjgl.openal.ALC10;
-import org.lwjgl.openal.ALCcontext;
 
-import javax.annotation.Nullable;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 @ForgeVoicechatPlugin
@@ -34,25 +23,13 @@ public class SimpleVoiceChatPlugin implements VoicechatPlugin {
     private static final UUID OWN_VOICE_ID = UUID.randomUUID();
     public static String OWN_VOICE_CATEGORY = "own_voice";
 
-    private final Map<UUID, AudioChannel> audioChannels;
     private ClientLocationalAudioChannel locationalAudioChannel;
 
-    private static final Constructor<?> cotr;
-    private static final Field alcContext;
-
-    static {
-        try {
-            cotr = ALCcontext.class.getDeclaredConstructor(long.class);
-            cotr.setAccessible(true);
-            alcContext = ALC10.class.getDeclaredField("alcContext");
-            alcContext.setAccessible(true);
-        } catch (NoSuchMethodException | NoSuchFieldException e) {
-            throw new RuntimeException(e);
-        }
+    public SimpleVoiceChatPlugin() {
     }
 
-    public SimpleVoiceChatPlugin() {
-        audioChannels = new HashMap<>();
+    static boolean isOwnVoiceChannel(UUID channelId) {
+        return OWN_VOICE_ID.equals(channelId);
     }
 
     @Override
@@ -63,13 +40,10 @@ public class SimpleVoiceChatPlugin implements VoicechatPlugin {
     @Override
     public void initialize(VoicechatApi api) {
         SoundPhysics.logger.info("Initializing Simple Voice Chat integration");
-        audioChannels.clear();
     }
 
     @Override
     public void registerEvents(EventRegistration registration) {
-        registration.registerEvent(CreateOpenALContextEvent.class, this::onCreateALContext);
-        registration.registerEvent(OpenALSoundEvent.class, this::onOpenALSound);
         registration.registerEvent(ClientVoicechatConnectionEvent.class, this::onConnection);
         registration.registerEvent(ClientSoundEvent.class, this::onClientSound);
         registration.registerEvent(VoicechatServerStartedEvent.class, this::onServerStarted);
@@ -91,53 +65,28 @@ public class SimpleVoiceChatPlugin implements VoicechatPlugin {
         if (!Config.hearSelf) {
             return;
         }
-        Vec3d position = Minecraft.getMinecraft().player.getPositionVector();
+        if (Minecraft.getMinecraft().player == null) {
+            return;
+        }
+        Vec3d position = Minecraft.getMinecraft().player.getPositionVector().add(0D, Minecraft.getMinecraft().player.getEyeHeight(), 0D);
         locationalAudioChannel.setCategory(OWN_VOICE_CATEGORY);
         locationalAudioChannel.setLocation(event.getVoicechat().createPosition(position.x, position.y, position.z));
         locationalAudioChannel.play(event.getRawAudio());
     }
 
-    private void onCreateALContext(CreateOpenALContextEvent event){
-        ALCcontext oldContext = ALC10.alcGetCurrentContext();
-        try {
-            alcContext.set(null, (ALCcontext) cotr.newInstance(event.getContext()));
-        } catch (Throwable t) {
-            SoundPhysics.logger.error(t);
-        }
-
-        SoundPhysics.logger.info("Initializing sound physics for voice chat audio");
-        SoundPhysics.init();
-
-        try {
-            alcContext.set(null, oldContext);
-        } catch (Throwable t) {
-            SoundPhysics.logger.error(t);
-        }
-    }
-
     private void onConnection(ClientVoicechatConnectionEvent event) {
-        SoundPhysics.logger.debug("Clearing unused audio channels");
-        audioChannels.values().removeIf(AudioChannel::canBeRemoved);
-        locationalAudioChannel = event.getVoicechat().createLocationalAudioChannel(OWN_VOICE_ID, event.getVoicechat().createPosition(0D, 0D, 0D));
-    }
-
-    private void onOpenALSound(OpenALSoundEvent event) {
-        if (!Config.simpleVoiceChatIntegration) {
+        if (!event.isConnected()) {
+            locationalAudioChannel = null;
+            OpenALSpeakerRouter.closeAll();
             return;
         }
-
-        @Nullable Position position = event.getPosition();
-        @Nullable UUID channelId = event.getChannelId();
-
-        if (channelId == null) {
-            return;
+        try {
+            locationalAudioChannel = event.getVoicechat().createLocationalAudioChannel(OWN_VOICE_ID, event.getVoicechat().createPosition(0D, 0D, 0D));
+            SoundPhysics.logger.info("Simple Voice Chat connected, own-voice channel ready (active channels: " + OpenALSpeakerRouter.getActiveChannelCount() + ")");
+        } catch (Throwable t) {
+            SoundPhysics.logger.error("Failed to create own-voice locational audio channel", t);
+            locationalAudioChannel = null;
         }
-
-        boolean auxOnly = Config.hearSelf && OWN_VOICE_ID.equals(channelId);
-
-        @Nullable AudioChannel audioChannel = audioChannels.computeIfAbsent(channelId, AudioChannel::new);
-
-        audioChannel.onSound(event.getSource(), position == null ? null : new Vec3d(position.getX(), position.getY(), position.getZ()), auxOnly, event.getCategory());
     }
 
 }
