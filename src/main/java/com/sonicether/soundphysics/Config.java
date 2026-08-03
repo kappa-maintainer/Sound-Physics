@@ -1,9 +1,11 @@
 package com.sonicether.soundphysics;
 
-import java.io.File;
+import com.sonicether.soundphysics.acoustics.WaterAcoustics;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import net.minecraftforge.common.MinecraftForge;
@@ -17,6 +19,8 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 public class Config {
 
+	private static final AtomicReference<WaterAcoustics.Settings> waterAcoustics =
+			new AtomicReference<>(WaterAcoustics.Settings.defaults());
 	public static final Config instance;
 	private Configuration forgeConfig;
 
@@ -30,7 +34,6 @@ public class Config {
 	public static float globalBlockReflectance;
 	public static float airAbsorption;
 	public static float snowAirAbsorptionFactor;
-	public static float underwaterFilter;
 	public static boolean noteBlockEnable;
 	public static float maxDistance;
 	public static boolean volumeMulOnlyAffected;
@@ -80,6 +83,7 @@ public class Config {
 	public static float snapshotMaxRetainBlockDistance;
 
 	private static final String categoryGeneral = "General";
+	private static final String categoryWaterAcoustics = "Water acoustics";
 	private static final String categoryPerformance = "Performance";
 	private static final String categoryMaterialProperties = "Material properties";
 	private static final String categoryCompatibility = "Compatibility";
@@ -121,6 +125,10 @@ public class Config {
 
 	private static Pattern reverbBlacklistPattern;
 
+	public static WaterAcoustics.Settings getWaterAcoustics() {
+		return waterAcoustics.get();
+	}
+
 	static Pattern getReverbBlacklistPattern() {
 		if (reverbBlacklist == null || reverbBlacklist.length == 0) {
 			return null;
@@ -140,6 +148,7 @@ public class Config {
 		final ArrayList<IConfigElement> list = new ArrayList<IConfigElement>();
 
 		list.add(new ConfigElement(this.forgeConfig.getCategory(Config.categoryGeneral)));
+		list.add(new ConfigElement(this.forgeConfig.getCategory(Config.categoryWaterAcoustics)));
 		list.add(new ConfigElement(this.forgeConfig.getCategory(Config.categoryPerformance)));
 		list.add(new ConfigElement(this.forgeConfig.getCategory(Config.categoryMaterialProperties)));
 		list.add(new ConfigElement(this.forgeConfig.getCategory(Config.categoryCompatibility)));
@@ -171,8 +180,6 @@ public class Config {
 				"A value controlling the amount that air absorbs high frequencies with distance. A value of 1.0 is physically correct for air with normal humidity and temperature. Higher values mean air will absorb more high frequencies with distance. 0 disables this effect.");
 		snowAirAbsorptionFactor = this.forgeConfig.getFloat("Max Snow Air Absorption Factor", categoryGeneral, 5.0f, 0.0f, 10.0f,
 				"The maximum air absorption factor when it's snowing. The real absorption factor will depend on the snow's intensity. Set to 1 or lower to disable");
-		underwaterFilter = this.forgeConfig.getFloat("Underwater Filter", categoryGeneral, 0.8f, 0.0f, 1.0f,
-				"How much sound is filtered when the player is underwater. 0.0 means no filter. 1.0 means fully filtered.");
 		noteBlockEnable = this.forgeConfig.getBoolean("Affect Note Blocks", categoryGeneral, true,
 				"If true, note blocks will be processed.");
 		maxDistance = this.forgeConfig.getFloat("Max ray distance", categoryGeneral, 256.0f, 1.0f, 8192.0f,
@@ -181,6 +188,44 @@ public class Config {
 				"If true, the global volume multiplier will only be applied to affected sounds (so not to the ui sounds for example).");
 		globalEchoMultiplier = this.forgeConfig.getFloat("Global Echo Multiplier", categoryGeneral, 1.0f, 0.0f, 2.0f,
 				"The global volume multiplier of the echos, put to 0 to disable echos all together");
+
+		boolean pathAbsorptionEnabled = this.forgeConfig.getBoolean("Enable Water Path Absorption", categoryWaterAcoustics, true,
+				"Apply distance-dependent high-frequency loss to the part of a direct sound path that travels through water.");
+		float waterHfLossPerBlock = this.forgeConfig.getFloat("Water HF Loss Per Block (dB)", categoryWaterAcoustics, 0.03f, 0.0f, 1.0f,
+				"Game-scaled high-frequency loss per block of water after the start distance. Real water absorption is much weaker at Minecraft distances.");
+		float waterAbsorptionStartDistance = this.forgeConfig.getFloat("Water Absorption Start Distance", categoryWaterAcoustics, 10.0f, 0.0f, 128.0f,
+				"Water path length in blocks before distance-dependent high-frequency loss starts.");
+		float waterHfLossCap = this.forgeConfig.getFloat("Water HF Loss Cap (dB)", categoryWaterAcoustics, 9.0f, 0.0f, 60.0f,
+				"Maximum high-frequency loss caused by distance traveled through water.");
+		boolean interfaceEffectsEnabled = this.forgeConfig.getBoolean("Enable Water Interface Effects", categoryWaterAcoustics, true,
+				"Apply transmission loss and optional reflected reverb when sound crosses an air-water boundary.");
+		float interfaceTransmissionLoss = this.forgeConfig.getFloat("Interface Transmission Loss (dB)", categoryWaterAcoustics, 12.0f, 0.0f, 60.0f,
+				"Broadband amplitude loss per counted air-water boundary. About 30 dB approximates ideal normal-incidence physics; the default preserves gameplay audibility.");
+		float interfaceHfLoss = this.forgeConfig.getFloat("Interface HF Loss (dB)", categoryWaterAcoustics, 3.0f, 0.0f, 30.0f,
+				"Additional game-scaled high-frequency loss per counted air-water boundary.");
+		int maxCountedInterfaces = this.forgeConfig.getInt("Max Counted Interfaces", categoryWaterAcoustics, 2, 0, 16,
+				"Maximum air-water boundaries that can attenuate one direct sound path.");
+		float interfaceReflectionMix = this.forgeConfig.getFloat("Interface Reflection Mix", categoryWaterAcoustics, 0.15f, 0.0f, 1.0f,
+				"Amount of rejected interface energy approximated through early reverb sends. Set to 0 to disable this approximation.");
+		float interfaceReflectionSendCap = this.forgeConfig.getFloat("Interface Reflection Send Cap", categoryWaterAcoustics, 0.25f, 0.0f, 1.0f,
+				"Maximum additional early-reverb send gain produced by water interfaces.");
+		boolean listenerColorationEnabled = this.forgeConfig.getBoolean("Enable Underwater Hearing Coloration", categoryWaterAcoustics, true,
+				"Color all affected sounds when the listener's ears are underwater.");
+		float listenerGainLoss = this.forgeConfig.getFloat("Underwater Hearing Gain Loss (dB)", categoryWaterAcoustics, 2.0f, 0.0f, 30.0f,
+				"Broadband hearing loss while the listener is fully underwater.");
+		float listenerHfLoss = this.forgeConfig.getFloat("Underwater Hearing HF Loss (dB)", categoryWaterAcoustics, 12.0f, 0.0f, 60.0f,
+				"Relative high-frequency hearing loss while the listener is fully underwater.");
+		float listenerLfLoss = this.forgeConfig.getFloat("Underwater Hearing LF Loss (dB)", categoryWaterAcoustics, 3.0f, 0.0f, 30.0f,
+				"Relative low-frequency hearing loss while the listener is fully underwater, leaving the middle frequencies more prominent.");
+		int listenerAttackMs = this.forgeConfig.getInt("Underwater Hearing Attack (ms)", categoryWaterAcoustics, 120, 0, 5000,
+				"Time used to blend into underwater hearing coloration.");
+		int listenerReleaseMs = this.forgeConfig.getInt("Underwater Hearing Release (ms)", categoryWaterAcoustics, 300, 0, 5000,
+				"Time used to blend out of underwater hearing coloration.");
+		waterAcoustics.set(new WaterAcoustics.Settings(pathAbsorptionEnabled, waterHfLossPerBlock,
+				waterAbsorptionStartDistance, waterHfLossCap, interfaceEffectsEnabled, interfaceTransmissionLoss,
+				interfaceHfLoss, maxCountedInterfaces, interfaceReflectionMix, interfaceReflectionSendCap,
+				listenerColorationEnabled, listenerGainLoss, listenerHfLoss, listenerLfLoss,
+				listenerAttackMs, listenerReleaseMs));
 
 		// performance
 		skipRainOcclusionTracing = this.forgeConfig.getBoolean("Skip Rain Occlusion Tracing", categoryPerformance, true,

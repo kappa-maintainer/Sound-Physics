@@ -1,10 +1,7 @@
 package com.sonicether.soundphysics.voicechat;
 
 import com.sonicether.soundphysics.SoundPhysics;
-import com.sonicether.soundphysics.ClientHelper;
 import net.minecraft.client.Minecraft;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.block.material.Material;
 import net.minecraft.util.math.Vec3d;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.openal.AL10;
@@ -88,10 +85,7 @@ public final class OpenALSpeakerRouter {
 
         private long lastEnvUpdate;
         private Vec3d lastEnvPos;
-        private boolean lastSourceInWater;
-        private boolean lastListenerInWater;
         private long lastDiagnosticLog;
-        private long lastEnvironmentLog;
         private boolean closed;
 
         ChannelSource(UUID channelId) {
@@ -151,7 +145,7 @@ public final class OpenALSpeakerRouter {
 
         private void applyEnvironment(@Nullable Vec3d position, @Nullable String category) {
             if (position == null) {
-                SoundPhysics.setDefaultEnvironment(sourceId, false);
+                SoundPhysics.setListenerColorationOrDefault(sourceId);
                 return;
             }
 
@@ -161,37 +155,13 @@ public final class OpenALSpeakerRouter {
                 return;
             }
 
-            SourceMedium sourceMedium = getSourceMedium(mc, position);
-            boolean listenerInWater = ClientHelper.isInsideOfMaterial(Material.WATER);
             long now = System.currentTimeMillis();
-            if (now - lastEnvUpdate < 500 && lastEnvPos != null && lastEnvPos.distanceTo(position) < 1.0
-                    && lastSourceInWater == sourceMedium.inWater() && lastListenerInWater == listenerInWater) {
+            if (now - lastEnvUpdate < 50 && lastEnvPos != null && lastEnvPos.distanceTo(position) < 1.0) {
                 return;
             }
-            SoundPhysics.applyVoiceEnvironment(sourceId, position, sourceMedium.inWater(), category);
-
-            if (now - lastEnvironmentLog >= DIAGNOSTIC_INTERVAL_MS) {
-                lastEnvironmentLog = now;
-                SoundPhysics.logger.info("SVC environment channel=" + channelId
-                        + ", sourceInWater=" + sourceMedium.inWater()
-                        + ", listenerInWater=" + listenerInWater
-                        + ", sourcePlayer=" + sourceMedium.playerFound());
-            }
-
+            SoundPhysics.applyVoiceEnvironment(sourceId, position, category);
             lastEnvUpdate = now;
             lastEnvPos = position;
-            lastSourceInWater = sourceMedium.inWater();
-            lastListenerInWater = listenerInWater;
-        }
-
-        private SourceMedium getSourceMedium(Minecraft mc, Vec3d position) {
-            EntityPlayer player = mc.world.getPlayerEntityByUUID(channelId);
-            if (player == null && SimpleVoiceChatPlugin.isOwnVoiceChannel(channelId)) {
-                player = mc.player;
-            }
-            return player == null
-                    ? new SourceMedium(false, false)
-                    : new SourceMedium(ClientHelper.isInsideOfMaterial(player, Material.WATER), true);
         }
 
         private void logGain(float volume, float maxDistance, @Nullable Vec3d position, float distanceGain, float finalGain) {
@@ -254,9 +224,6 @@ public final class OpenALSpeakerRouter {
                 SoundPhysics.logger.error("Error destroying OpenAL voice source", t);
             }
         }
-    }
-
-    private record SourceMedium(boolean inWater, boolean playerFound) {
     }
 
     private static float distanceVolume(float maxDistance, Vec3d position) {

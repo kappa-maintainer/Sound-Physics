@@ -29,7 +29,7 @@ dependencies {
         compileOnly "com.cleanroommc:lwjglx:1.0.0"
     }
     compileOnly "curse.maven:glibyvc-296045:3882806" //Gliby's Voice Chat Reloaded
-    modCompileOnly ("curse.maven:umc-371784:4975229") //Immersive Railroading
+    modCompileOnly ("curse.maven:umc-371784:8344839") //Immersive Railroading
     modImplementation "curse.maven:dynsur-238891:2922489" //Dynamic Surroundings
     //compileOnly "curse.maven:midnight-304881:2727758" //The Midnight
     //compileOnly "mush:themidnight:0.3.5"

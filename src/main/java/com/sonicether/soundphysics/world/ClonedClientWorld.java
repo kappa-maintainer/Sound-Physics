@@ -70,6 +70,11 @@ public final class ClonedClientWorld implements IBlockAccess {
         return dimensionName;
     }
 
+    public boolean containsBlock(BlockPos pos) {
+        return pos.getY() >= 0 && pos.getY() < 256
+            && chunks.containsKey(new ChunkPos(pos.getX() >> 4, pos.getZ() >> 4));
+    }
+
     @Override
     public IBlockState getBlockState(BlockPos pos) {
         ClonedChunk chunk = chunks.get(new ChunkPos(pos.getX() >> 4, pos.getZ() >> 4));
