@@ -5,14 +5,22 @@ import com.sonicether.soundphysics.Config;
 import com.sonicether.soundphysics.SoundPhysics;
 import com.sonicether.soundphysics.acoustics.ListenerWaterState;
 import com.sonicether.soundphysics.acoustics.WaterAcoustics;
+import com.sonicether.soundphysics.world.ClonedClientWorld;
 import com.sonicether.soundphysics.world.WorldProxy;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
+import java.util.Set;
+
 public final class SnapshotManager {
+
+    // Minimum interval between block-change-driven snapshot rebuilds. Prevents
+    // rapidly-changing areas (fluids, redstone) from rebuilding every tick.
+    private static final long DIRTY_REFRESH_COOLDOWN_NANOS = 250_000_000L;
 
     private int lastDimId = Integer.MAX_VALUE;
     private int lastPlayerChunkX = Integer.MAX_VALUE;
@@ -20,6 +28,7 @@ public final class SnapshotManager {
     private boolean lastListenerInWater;
     private float lastPublishedWetness;
     private long lastWaterEnvironmentRefreshNanos;
+    private long lastDirtyRefreshNanos;
 
     public SnapshotManager() {}
 
@@ -57,6 +66,25 @@ public final class SnapshotManager {
         }
         if (!Config.useSnapshot) {
             if (WorldProxy.get() != null) WorldProxy.clear();
+            return;
+        }
+
+        // Block changes (break/place/updates) and newly loaded chunks invalidate
+        // the snapshot immediately instead of waiting up to
+        // snapshotMaxRetainTicks. Only the affected chunks are re-cloned; a
+        // short cooldown prevents rapidly-changing areas (fluids, redstone)
+        // from rebuilding too often.
+        if (WorldProxy.isDirty() && nowNanos - lastDirtyRefreshNanos >= DIRTY_REFRESH_COOLDOWN_NANOS) {
+            lastDirtyRefreshNanos = nowNanos;
+            Set<ChunkPos> dirty = WorldProxy.consumeDirtyChunks();
+            BlockPos origin = new BlockPos(mc.player);
+            ClonedClientWorld previous = WorldProxy.getSnapshot();
+            if (previous == null) {
+                WorldProxy.refresh(mc.world, origin, mc.world.getWorldTime(), Config.snapshotRange);
+            } else {
+                WorldProxy.refreshIncremental(previous, mc.world, origin, mc.world.getWorldTime(),
+                        Config.snapshotRange, dirty);
+            }
             return;
         }
 

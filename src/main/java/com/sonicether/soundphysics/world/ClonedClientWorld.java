@@ -19,6 +19,7 @@ import net.minecraft.world.chunk.Chunk;
 import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class ClonedClientWorld implements IBlockAccess {
 
@@ -40,15 +41,56 @@ public final class ClonedClientWorld implements IBlockAccess {
                 chunks.put(new ChunkPos(cx, cz), new ClonedChunk(live));
             }
         }
+        WorldState state = captureWorldState(world, origin);
+        this.playerPos = state.playerPos();
+        this.tick = tick;
+        this.isRaining = state.isRaining();
+        this.rainStrength = state.rainStrength();
+        this.dimensionName = state.dimensionName();
+    }
+
+    /**
+     * Incremental rebuild: keeps the previous snapshot's chunk clones for every
+     * chunk that is still loaded, still inside the radius and not in the dirty
+     * set; only dirty or newly visible chunks are re-cloned from the live world.
+     * Chunks that are no longer loaded (or moved out of the radius) are dropped.
+     */
+    public ClonedClientWorld(ClonedClientWorld previous, WorldClient world, BlockPos origin, long tick,
+            int radius, Set<ChunkPos> dirtyChunks) {
+        ChunkProviderClientHelper provider = new ChunkProviderClientHelper(world);
+        ChunkPos originChunk = new ChunkPos(origin.getX() >> 4, origin.getZ() >> 4);
+        for (int dx = -radius; dx < radius; dx++) {
+            for (int dz = -radius; dz < radius; dz++) {
+                int cx = originChunk.x + dx, cz = originChunk.z + dz;
+                ChunkPos pos = new ChunkPos(cx, cz);
+                Chunk live = provider.getLoadedChunk(cx, cz);
+                if (live == null) continue;
+                ClonedChunk cached = previous.chunks.get(pos);
+                if (cached != null && !dirtyChunks.contains(pos)) {
+                    chunks.put(pos, cached);
+                } else {
+                    chunks.put(pos, new ClonedChunk(live));
+                }
+            }
+        }
+        WorldState state = captureWorldState(world, origin);
+        this.playerPos = state.playerPos();
+        this.tick = tick;
+        this.isRaining = state.isRaining();
+        this.rainStrength = state.rainStrength();
+        this.dimensionName = state.dimensionName();
+    }
+
+    private static WorldState captureWorldState(WorldClient world, BlockPos origin) {
         EntityPlayer player = Minecraft.getMinecraft().player;
-        this.playerPos = player != null
+        Vec3d playerPos = player != null
             ? new Vec3d(player.posX, player.posY + player.getEyeHeight(), player.posZ)
             : new Vec3d(origin.getX() + 0.5, origin.getY() + 0.5, origin.getZ() + 0.5);
-        this.tick = tick;
-        this.isRaining = world.isRaining();
-        this.rainStrength = world.rainingStrength;
-        this.dimensionName = world.provider == null ? null : world.provider.getDimensionType().getName();
+        return new WorldState(playerPos, world.isRaining(), world.rainingStrength,
+            world.provider == null ? null : world.provider.getDimensionType().getName());
     }
+
+    private record WorldState(Vec3d playerPos, boolean isRaining, float rainStrength, String dimensionName) {}
 
     public Vec3d getPlayerPos() {
         return playerPos;

@@ -9,6 +9,8 @@
   ],
   "client": [
     "MixinChannelLWJGLOpenAL",
+    "MixinChunk",
+    "MixinChunkProviderClient",
     "MixinLibraryLWJGLOpenAL",
     "MixinSoundManager",
     "MixinSoundSystem",

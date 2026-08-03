@@ -35,6 +35,13 @@ public class SPMixinConfigPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        // The snapshot invalidation mixins only make sense while the snapshot
+        // scheme is enabled; with the live (unsafe) world mode they are not
+        // applied at all.
+        if (mixinClassName.endsWith(".MixinChunk")
+                || mixinClassName.endsWith(".MixinChunkProviderClient")) {
+            return Config.useSnapshot;
+        }
         return switch (mixinClassName.split("\\.")[4]) {
             case "glibyfix" -> Loader.isModLoaded("gvc") && Config.glibyVCPatching;
             case "glibysrc" -> Loader.isModLoaded("gvc") && Config.glibyVCSrcPatching;
