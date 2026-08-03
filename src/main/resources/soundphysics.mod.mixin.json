@@ -21,8 +21,6 @@
         "glibyfix.MixinOvrLibraryLWJGLOpenAL",
         "glibyfix.MixinOvrSourceLWJGLOpenAL",
         
-        "enhancedvisuals.MixinVisualHandler",
-
         "computronics.MixinStreamingAudioPlayer",
         "computronics.MixinAudioPacket",
         "computronics.MixinTileSpeaker",
@@ -35,6 +33,7 @@
         "voicechat.MixinSpeakerManager"
     ],
     "client": [
+        "enhancedvisuals.MixinVisualHandler"
     ],
     "minVersion": "0.8"
 }
