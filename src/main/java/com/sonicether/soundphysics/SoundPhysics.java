@@ -6,6 +6,7 @@ import com.sonicether.soundphysics.acoustics.ListenerWaterState;
 import com.sonicether.soundphysics.acoustics.WaterAcoustics;
 import com.sonicether.soundphysics.utils.RaycastHelper;
 import com.sonicether.soundphysics.utils.SnapshotManager;
+import com.sonicether.soundphysics.voicechat.OpenALSpeakerRouter;
 import com.sonicether.soundphysics.world.WorldProxy;
 import net.minecraft.block.Block;
 import net.minecraft.block.SoundType;
@@ -42,6 +43,7 @@ import javax.sound.sampled.AudioFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -123,6 +125,21 @@ public class SoundPhysics {
 	private static long lastSourceReclaimNanos;
 	private static final AtomicBoolean sourceFilterCapacityLogged = new AtomicBoolean();
 	private static final AtomicBoolean snapshotManagerRegistered = new AtomicBoolean();
+	// The OpenAL device and context are destroyed and recreated whenever the sound
+	// system restarts (F3+T, resource pack change, SVC reload): SoundManager calls
+	// SoundSystem.cleanup(), which ends in AL.destroy() -> alcDestroyContext +
+	// alcCloseDevice. Every AL name cached above - filters, effects, auxiliary
+	// slots, sources - dies with the old context, and the fresh context hands out
+	// the very same numbers for different objects, so the caches must be dropped
+	// as soon as the context changes.
+	private static ALCcontext alContext;
+	// Set by MixinSoundSystem when SoundSystem.cleanup() runs. The OpenAL context
+	// pointer can in principle be reused by the allocator, so this flag makes the
+	// restart detection deterministic instead of relying on pointer identity alone.
+	private static volatile boolean soundSystemRestartPending;
+	private static final long ERROR_LOG_THROTTLE_NANOS = 5_000_000_000L;
+	private static final int MAX_TRACKED_ERROR_MESSAGES = 64;
+	private static final Map<String, ErrorLogThrottle> errorLogThrottles = new HashMap<>();
 
 	private static Minecraft mc;
 	private static SoundSystem sndSystem;
@@ -198,6 +215,8 @@ public class SoundPhysics {
 	}
 
 	private static void setupEFX() {
+		resetOpenAlStateIfContextChanged();
+
 		// Get current context and device
 		final ALCcontext currentContext = ALC10.alcGetCurrentContext();
 		final ALCdevice currentDevice = ALC10.alcGetContextsDevice(currentContext);
@@ -262,6 +281,70 @@ public class SoundPhysics {
 		checkErrorLog("Error creating band-pass filters!");
 
 		applyConfigChanges();
+	}
+
+	/**
+	 * Drops every cached OpenAL name when the OpenAL context changed.
+	 * <p>
+	 * A resource reload (F3+T, resource pack change) restarts the whole sound
+	 * system: {@code SoundManager.reloadSoundSystem()} calls
+	 * {@code SoundSystem.cleanup()}, which reaches {@code AL.destroy()} and closes
+	 * both context and device. Names of filters, effects, auxiliary slots and
+	 * sources are scoped to a context, so reusing a cached one makes OpenAL reject
+	 * the call with AL_INVALID_NAME - while the new context may have handed the same
+	 * number to a completely different object. Without this reset the shared direct
+	 * filter buckets would keep pointing at the dead context forever, which muted
+	 * all water/occlusion filtering until the game was restarted.
+	 */
+	private static synchronized void resetOpenAlStateIfContextChanged() {
+		final ALCcontext currentContext = ALC10.alcGetCurrentContext();
+		if (currentContext == null) {
+			return;
+		}
+		final boolean contextChanged = !currentContext.equals(alContext);
+		final boolean restarted = soundSystemRestartPending;
+		if (!contextChanged && !restarted) {
+			return;
+		}
+		if (alContext != null) {
+			log("OpenAL context changed; discarding cached audio filters and source state");
+		}
+		alContext = currentContext;
+		soundSystemRestartPending = false;
+
+		// The old names no longer exist: forget them, never delete them.
+		for (SourceFilters filters : sourceFilters.values()) {
+			filters.invalidate();
+		}
+		sourceFilters.clear();
+		for (SourceFilters filters : voiceSourceFilters.values()) {
+			filters.invalidate();
+		}
+		voiceSourceFilters.clear();
+		// The new context hands out source names from the start again, so stale
+		// per-source bookkeeping would be mistaken for live sources.
+		sourceEnvironments.clear();
+		environmentParameters.clear();
+		sourceFilterCapacityLogged.set(false);
+
+		auxFXSlot0 = auxFXSlot1 = auxFXSlot2 = auxFXSlot3 = 0;
+		reverb0 = reverb1 = reverb2 = reverb3 = 0;
+		directFilter0 = sendFilter0 = sendFilter1 = sendFilter2 = sendFilter3 = 0;
+		mutedSendFilter0 = mutedSendFilter1 = mutedSendFilter2 = mutedSendFilter3 = 0;
+
+		// Voice chat owns its own sources and buffers; hand them back for lazy
+		// re-creation. init() marks the router ready again right after setupEFX().
+		OpenALSpeakerRouter.reset();
+	}
+
+	/**
+	 * Called by MixinSoundSystem when {@code SoundSystem.cleanup()} starts, i.e. the
+	 * sound system - and with it the OpenAL context - is about to be torn down.
+	 * The actual cache reset happens in {@link #resetOpenAlStateIfContextChanged()}
+	 * once the replacement sound system is set up.
+	 */
+	public static void onSoundSystemShutdown() {
+		soundSystemRestartPending = true;
 	}
 
 	private static boolean isEFXReady() {
@@ -1038,12 +1121,25 @@ public class SoundPhysics {
 		DirectFilterKey key = DirectFilterKey.of(directGain, directCutoff);
 		SourceFilters existing = sourceFilters.get(key);
 		if (existing != null) {
-			// Same parameter class: refresh in place. All attached sources hear
-			// the update, which is coherent because they are within quantization
-			// of each other.
-			existing.set(directGain, directCutoff, lowFrequencyGain, listenerWetness);
-			existing.markUsed();
-			return existing;
+			if (existing.isUsable()) {
+				// Same parameter class: refresh in place. All attached sources hear
+				// the update, which is coherent because they are within quantization
+				// of each other.
+				existing.set(directGain, directCutoff, lowFrequencyGain, listenerWetness);
+				existing.markUsed();
+				return existing;
+			}
+			// The bucket outlived its OpenAL context (its name now belongs to the
+			// destroyed one). Rebuild the filter instead of attaching a dead name
+			// to every new source forever - that failure never healed on its own.
+			sourceFilters.remove(key);
+			if (existing.recreate()) {
+				existing.set(directGain, directCutoff, lowFrequencyGain, listenerWetness);
+				existing.markUsed();
+				sourceFilters.put(key, existing);
+				return existing;
+			}
+			// Could not rebuild: fall through and allocate a fresh bucket.
 		}
 		if (sourceFilters.size() >= MAX_DIRECT_FILTER_BUCKETS) {
 			reclaimInactiveSources();
@@ -1278,6 +1374,47 @@ public class SoundPhysics {
 			return direct != 0;
 		}
 
+		/**
+		 * True when this bucket's filter still exists in the current OpenAL context.
+		 * A stale name either fails the check (name now unused or owned by a
+		 * non-filter object) or - if the new context reused the number for a fresh
+		 * filter - is valid and gets the correct parameters written into it anyway.
+		 */
+		private boolean isUsable() {
+			if (direct == 0) {
+				return false;
+			}
+			// The probe must not leave an error flag behind that a later
+			// checkErrorLog would misattribute to one of its own calls.
+			AL10.alGetError();
+			final boolean usable = EFX10.alIsFilter(direct);
+			AL10.alGetError();
+			return usable;
+		}
+
+		/**
+		 * Creates a replacement filter for a bucket whose name died with its
+		 * OpenAL context. The old name is deliberately not deleted: it belongs to a
+		 * destroyed context, so deleting it would itself raise AL_INVALID_NAME.
+		 */
+		private boolean recreate() {
+			final int filter = createBandPassFilter();
+			if (filter == 0) {
+				direct = 0;
+				return false;
+			}
+			direct = filter;
+			return true;
+		}
+
+		/**
+		 * Forgets a filter whose OpenAL context no longer exists. After this
+		 * {@link #delete()} is a no-op, so teardown paths cannot touch dead names.
+		 */
+		private void invalidate() {
+			direct = 0;
+		}
+
 		private void delete() {
 			if (direct != 0) EFX10.alDeleteFilters(direct);
 		}
@@ -1345,6 +1482,15 @@ public class SoundPhysics {
 		event.getRegistry().register(CLICK);
 	}
 
+	/**
+	 * Reports a pending OpenAL error, throttled per message.
+	 * <p>
+	 * AL errors are sticky until read and a broken call site is retried for every
+	 * source being set up, so an unthrottled report turns a single bad name into a
+	 * line per sound played (the 1.3.0 resource-reload bug spammed the log while
+	 * underwater). Identical messages are logged once immediately and then at most
+	 * every {@link #ERROR_LOG_THROTTLE_NANOS}, with a suppression count.
+	 */
 	protected static void checkErrorLog(final String errorMessage) {
 		final int error = AL10.alGetError();
 		if (error == AL10.AL_NO_ERROR) {
@@ -1360,7 +1506,31 @@ public class SoundPhysics {
             default -> Integer.toString(error);
         };
 
-        logError(errorMessage + " OpenAL error " + errorName);
+        final String message = errorMessage + " OpenAL error " + errorName;
+        final long now = System.nanoTime();
+        synchronized (SoundPhysics.class) {
+            if (errorLogThrottles.size() > MAX_TRACKED_ERROR_MESSAGES) {
+                errorLogThrottles.clear();
+            }
+            ErrorLogThrottle throttle = errorLogThrottles.computeIfAbsent(message, key -> new ErrorLogThrottle());
+            if (now - throttle.lastLoggedNanos < ERROR_LOG_THROTTLE_NANOS) {
+                throttle.suppressed++;
+                return;
+            }
+            final int suppressed = throttle.suppressed;
+            throttle.suppressed = 0;
+            throttle.lastLoggedNanos = now;
+            logError(suppressed > 0
+                    ? message + " (suppressed " + suppressed + " identical error(s) in the last "
+                            + (ERROR_LOG_THROTTLE_NANOS / 1_000_000_000L) + "s)"
+                    : message);
+        }
     }
+
+	private static final class ErrorLogThrottle {
+		// Far in the past so the very first occurrence always logs immediately.
+		private long lastLoggedNanos = Long.MIN_VALUE / 2;
+		private int suppressed;
+	}
 
 }

@@ -41,6 +41,20 @@ public final class OpenALSpeakerRouter {
         SoundPhysics.logger.info("Simple Voice Chat OpenAL router is ready");
     }
 
+    /**
+     * Drops every cached voice source after the OpenAL context was destroyed and
+     * recreated (resource reload, sound system restart). The cached names are
+     * bound to the dead context: they must be forgotten, not deleted. Sources are
+     * re-created lazily once {@link #markReady()} is called again.
+     */
+    public static void reset() {
+        for (ChannelSource source : sources.values()) {
+            source.discard();
+        }
+        sources.clear();
+        ready = false;
+    }
+
     public static void play(UUID channelId, short[] monoData, float volume,
                             @Nullable Vec3d position, @Nullable String category, float maxDistance) {
         if (!ready || channelId == null || monoData.length == 0) {
@@ -192,6 +206,17 @@ public final class OpenALSpeakerRouter {
 
         private int getQueued() {
             return AL10.alGetSourcei(sourceId, AL10.AL_BUFFERS_QUEUED);
+        }
+
+        /**
+         * Forgets a source whose OpenAL context no longer exists. No OpenAL call
+         * is made: the names belong to a destroyed context, so even deleting them
+         * would raise AL_INVALID_NAME.
+         */
+        synchronized void discard() {
+            closed = true;
+            allBuffers.clear();
+            bufferPool.clear();
         }
 
         private int obtainBuffer() {
