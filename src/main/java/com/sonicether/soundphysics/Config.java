@@ -21,6 +21,7 @@ public class Config {
 
 	private static final AtomicReference<WaterAcoustics.Settings> waterAcoustics =
 			new AtomicReference<>(WaterAcoustics.Settings.defaults());
+	public static boolean treatHotFluidsAsSolid;
 	public static final Config instance;
 	private Configuration forgeConfig;
 
@@ -226,6 +227,8 @@ public class Config {
 				interfaceHfLoss, maxCountedInterfaces, interfaceReflectionMix, interfaceReflectionSendCap,
 				listenerColorationEnabled, listenerGainLoss, listenerHfLoss, listenerLfLoss,
 				listenerAttackMs, listenerReleaseMs));
+		treatHotFluidsAsSolid = this.forgeConfig.getBoolean("Treat Lava And Molten Fluids As Solid", categoryWaterAcoustics, true,
+				"REQUIRES RESTART. If true, lava and hot modded fluids such as molten metals block and reflect sound like solid blocks instead of letting it pass through. Cold fluids such as water keep their own handling.");
 
 		// performance
 		skipRainOcclusionTracing = this.forgeConfig.getBoolean("Skip Rain Occlusion Tracing", categoryPerformance, true,

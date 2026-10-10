@@ -1,5 +1,6 @@
 package com.sonicether.soundphysics;
 
+import com.sonicether.soundphysics.acoustics.AcousticMaterials;
 import com.sonicether.soundphysics.acoustics.AcousticPathTracer;
 import com.sonicether.soundphysics.acoustics.ListenerWaterState;
 import com.sonicether.soundphysics.acoustics.WaterAcoustics;
@@ -8,6 +9,7 @@ import com.sonicether.soundphysics.utils.SnapshotManager;
 import com.sonicether.soundphysics.world.WorldProxy;
 import net.minecraft.block.Block;
 import net.minecraft.block.SoundType;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.block.properties.PropertyDirection;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.ISound;
@@ -710,15 +712,18 @@ public class SoundPhysics {
 
 			if (!Config.skipRainOcclusionTracing || !isRain) {
 				for (int i = 0; i < 10; i++) {
-					final RayTraceResult rayHit = RaycastHelper.rayTraceBlocks(world, rayOrigin, playerPos, false);
+					final RayTraceResult rayHit = RaycastHelper.rayTraceBlocksAcoustic(world, rayOrigin, playerPos,
+							Config.treatHotFluidsAsSolid);
 
 					if (rayHit == null) {
 						break;
 					}
 
-					final Block blockHit = world.getBlockState(rayHit.getBlockPos()).getBlock();
+					final IBlockState hitState = world.getBlockState(rayHit.getBlockPos());
+					final Block blockHit = hitState.getBlock();
 
-					if (blockHit.isOpaqueCube(blockHit.getDefaultState())) {
+					if (blockHit.isOpaqueCube(blockHit.getDefaultState())
+							|| (Config.treatHotFluidsAsSolid && AcousticMaterials.isAcousticallySolid(hitState))) {
 						occlusionAccumulation += 1.0f;
 					}
 
@@ -780,7 +785,8 @@ public class SoundPhysics {
 				final Vec3d rayEnd = new Vec3d(rayStart.x + rayDir.x * maxDistance, rayStart.y + rayDir.y * maxDistance,
 						rayStart.z + rayDir.z * maxDistance);
 
-				final RayTraceResult rayHit = RaycastHelper.rayTraceBlocks(world, rayStart, rayEnd, false);
+				final RayTraceResult rayHit = RaycastHelper.rayTraceBlocksAcoustic(world, rayStart, rayEnd,
+						Config.treatHotFluidsAsSolid);
 
 				if (rayHit != null) {
 					final double rayLength = soundPos.distanceTo(rayHit.hitVec);
@@ -802,7 +808,8 @@ public class SoundPhysics {
 						final Vec3d newRayEnd = new Vec3d(newRayStart.x + newRayDir.x * maxDistance,
 								newRayStart.y + newRayDir.y * maxDistance, newRayStart.z + newRayDir.z * maxDistance);
 
-						final RayTraceResult newRayHit = RaycastHelper.rayTraceBlocks(world, newRayStart, newRayEnd, false);
+						final RayTraceResult newRayHit = RaycastHelper.rayTraceBlocksAcoustic(world, newRayStart, newRayEnd,
+								Config.treatHotFluidsAsSolid);
 
 						float energyTowardsPlayer = 0.25f;
 						final float blockReflectivity = getBlockReflectivity(lastHitBlock, world);
@@ -829,7 +836,8 @@ public class SoundPhysics {
 								final Vec3d finalRayStart = new Vec3d(lastHitPos.x + lastHitNormal.x * 0.01,
 										lastHitPos.y + lastHitNormal.y * 0.01, lastHitPos.z + lastHitNormal.z * 0.01);
 
-								final RayTraceResult finalRayHit = RaycastHelper.rayTraceBlocks(world, finalRayStart, playerPos, false);
+								final RayTraceResult finalRayHit = RaycastHelper.rayTraceBlocksAcoustic(world, finalRayStart,
+										playerPos, Config.treatHotFluidsAsSolid);
 
 								if (finalRayHit == null) {
 									// log("Secondary ray hit the player!");

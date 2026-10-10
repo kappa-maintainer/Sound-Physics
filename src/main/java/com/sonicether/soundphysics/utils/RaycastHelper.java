@@ -1,5 +1,6 @@
 package com.sonicether.soundphysics.utils;
 
+import com.sonicether.soundphysics.acoustics.AcousticMaterials;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -15,12 +16,39 @@ public final class RaycastHelper {
 
     private RaycastHelper() {}
 
+    /**
+     * Acoustic ray trace: like {@link #rayTraceBlocks(IBlockAccess, Vec3d, Vec3d, boolean)}
+     * with liquids passable, but additionally stops on blocks that are
+     * acoustically solid even though they are fluids (lava, hot modded fluids).
+     */
+    public static RayTraceResult rayTraceBlocksAcoustic(IBlockAccess world, Vec3d start, Vec3d end,
+        boolean hotFluidsAsSolid) {
+        return rayTraceBlocks(world, start, end, false, false, false, hotFluidsAsSolid);
+    }
+
     public static RayTraceResult rayTraceBlocks(IBlockAccess world, Vec3d start, Vec3d end, boolean stopOnLiquid) {
-        return rayTraceBlocks(world, start, end, stopOnLiquid, false, false);
+        return rayTraceBlocks(world, start, end, stopOnLiquid, false, false, false);
     }
 
     public static RayTraceResult rayTraceBlocks(IBlockAccess world, Vec3d start, Vec3d end,
         boolean stopOnLiquid, boolean ignoreBlockWithoutBoundingBox, boolean returnLastUncollidableBlock) {
+        return rayTraceBlocks(world, start, end, stopOnLiquid, ignoreBlockWithoutBoundingBox,
+            returnLastUncollidableBlock, false);
+    }
+
+    private static boolean blocksRay(IBlockState state, boolean stopOnLiquid, boolean hotFluidsAsSolid) {
+        return hotFluidsAsSolid && AcousticMaterials.isAcousticallySolid(state)
+            || state.getBlock().canCollideCheck(state, stopOnLiquid);
+    }
+
+    /** Hot fluids have no collision box, so they are traced as full cubes. */
+    private static boolean tracedAsFullCube(IBlockState state, boolean hotFluidsAsSolid) {
+        return hotFluidsAsSolid && AcousticMaterials.isAcousticallySolid(state);
+    }
+
+    private static RayTraceResult rayTraceBlocks(IBlockAccess world, Vec3d start, Vec3d end,
+        boolean stopOnLiquid, boolean ignoreBlockWithoutBoundingBox, boolean returnLastUncollidableBlock,
+        boolean hotFluidsAsSolid) {
         if (Double.isNaN(start.x) || Double.isNaN(start.y) || Double.isNaN(start.z)) {
             return null;
         } else if (!Double.isNaN(end.x) && !Double.isNaN(end.y) && !Double.isNaN(end.z)) {
@@ -34,8 +62,9 @@ public final class RaycastHelper {
             IBlockState iblockstate = world.getBlockState(blockpos);
             Block block = iblockstate.getBlock();
 
-            if ((!ignoreBlockWithoutBoundingBox || iblockstate.getCollisionBoundingBox(world, blockpos) != Block.NULL_AABB) && block.canCollideCheck(iblockstate, stopOnLiquid)) {
-                RayTraceResult raytraceresult = collisionRayTrace(world, iblockstate, blockpos, start, end);
+            if ((tracedAsFullCube(iblockstate, hotFluidsAsSolid) || !ignoreBlockWithoutBoundingBox || iblockstate.getCollisionBoundingBox(world, blockpos) != Block.NULL_AABB) && blocksRay(iblockstate, stopOnLiquid, hotFluidsAsSolid)) {
+                RayTraceResult raytraceresult = collisionRayTrace(world, iblockstate, blockpos, start, end,
+                    tracedAsFullCube(iblockstate, hotFluidsAsSolid));
                 if (raytraceresult != null) return raytraceresult;
             }
 
@@ -99,9 +128,10 @@ public final class RaycastHelper {
                 IBlockState iblockstate1 = world.getBlockState(blockpos);
                 Block block1 = iblockstate1.getBlock();
 
-                if (!ignoreBlockWithoutBoundingBox || iblockstate1.getMaterial() == Material.PORTAL || iblockstate1.getCollisionBoundingBox(world, blockpos) != Block.NULL_AABB) {
-                    if (block1.canCollideCheck(iblockstate1, stopOnLiquid)) {
-                        RayTraceResult raytraceresult1 = collisionRayTrace(world, iblockstate1, blockpos, vec31, vec32);
+                if (tracedAsFullCube(iblockstate1, hotFluidsAsSolid) || !ignoreBlockWithoutBoundingBox || iblockstate1.getMaterial() == Material.PORTAL || iblockstate1.getCollisionBoundingBox(world, blockpos) != Block.NULL_AABB) {
+                    if (blocksRay(iblockstate1, stopOnLiquid, hotFluidsAsSolid)) {
+                        RayTraceResult raytraceresult1 = collisionRayTrace(world, iblockstate1, blockpos, vec31, vec32,
+                            tracedAsFullCube(iblockstate1, hotFluidsAsSolid));
                         if (raytraceresult1 != null) return raytraceresult1;
                     } else {
                         raytraceresult2 = new RayTraceResult(RayTraceResult.Type.MISS, vec31, facing, blockpos);
@@ -115,8 +145,8 @@ public final class RaycastHelper {
         }
     }
 
-    private static RayTraceResult collisionRayTrace(IBlockAccess world, IBlockState state, BlockPos pos, Vec3d start, Vec3d end) {
-        AxisAlignedBB box = state.getBoundingBox(world, pos);
+    private static RayTraceResult collisionRayTrace(IBlockAccess world, IBlockState state, BlockPos pos, Vec3d start, Vec3d end, boolean asFullCube) {
+        AxisAlignedBB box = asFullCube ? Block.FULL_BLOCK_AABB : state.getBoundingBox(world, pos);
         return rayTrace(pos, start, end, box);
     }
 
